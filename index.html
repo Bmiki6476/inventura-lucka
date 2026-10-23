@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "f588738069";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "71a6cac12f";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -311,8 +311,8 @@ td.r,th.r{text-align:right;white-space:nowrap}
     <div class="card"><h3>Kto koľko spočítal</h3><div class="tscroll" id="tabLudia"></div></div>
     <div class="card admin-only"><h3>Výdajníky – porovnanie s účtovníctvom po modeloch</h3><div class="tscroll" id="tabVydModely"></div>
       <p class="note">Účtovne = karty majetku + nové na sklade s rovnakým modelom a rokom. SPIN = naše aktívne výdajníky (bez zákazníckych). Spolu = u zákazníkov podľa SPIN + nájdené pri inventúre.</p></div>
-    <div class="card admin-only"><h3>Naskenované výdajníky bez karty</h3><div id="tabVydNepr"></div>
-      <p class="note">Kusy, pre ktoré v účtovníctve VODAXu nie je karta s rovnakým kódom, modelom a rokom (väčšinou staršie, už odpísané výdajníky). Vyberte kartu, kam ich odrátať, alebo „Bez karty – prevziať mimo účtovníctva“ (v protokole budú ako nájdené navyše). Jednotlivý kus sa dá zmeniť aj v jeho karte.</p></div>
+    <div class="card admin-only"><h3>Výdajníky bez karty – nájdené navyše (0 €)</h3><div id="tabVydNepr"></div>
+      <p class="note">Kusy, pre ktoré v účtovníctve VODAXu nie je karta s rovnakým kódom, modelom a rokom (väčšinou staršie, už odpísané výdajníky). Preberajú sa automaticky mimo účtovníctva za 0 € – v súpise, exporte aj protokole sú ako nájdené navyše po modeloch. Ak niektoré predsa patria na kartu, vyberte ju (všetky kusy modelu naraz; jednotlivý kus v jeho detaile).</p></div>
     <div class="card"><h3>Výdajníky – po skladoch podľa SPIN</h3><div class="tscroll" id="tabVydSklady"></div></div>
     <div class="card admin-only"><h3>Barely 18,9 l – nákupy po rokoch a ocenenie</h3><div class="tscroll" id="tabBarely"></div>
       <p class="note" id="barelyPozn"></p></div>
@@ -538,6 +538,13 @@ function obnovView(){
   POLOZKY = (SRV.polozky || []).concat(navyse);
   MAPA = Object.fromEntries(POLOZKY.map(p => [p.id, p]));
   V.prir = priradVydajniky();
+  // výdajníky prevzaté mimo účtovníctva = „nájdené navyše“ za 0 €, jedna položka na model (v súpise, prehľade, exporte aj protokole)
+  const bez = {};
+  for (const vc of bezKartyKusy()) { const m = modelBez(vc); (bez[m] = bez[m] || []).push(vc); }
+  for (const [m, kusy] of Object.entries(bez)) {
+    const p = {id:'VBK|' + m, typ:'navyse', virt:true, kusy, kod:'—', nazov:'Výdajník ' + m + ' – bez karty v účtovníctve', skupina:'Výdajníky v majetku', mj:'ks', mn:0, hodnota:0, jc:0, sklad:'Nájdené pri inventúre'};
+    POLOZKY.push(p); MAPA[p.id] = p;
+  }
 }
 
 /** Pridá zmenu do fronty, hneď ju ukáže a naplánuje odoslanie. */
@@ -724,6 +731,7 @@ const jeVydMaj = p => p.skupina === 'Výdajníky v majetku';
 const pocty = id => (V && V.poItem[id]) || [];
 const udaj = id => (V && V.udaje[id]) || {vc:[], voz:{}, fotky:[]};
 function napocitane(p){
+  if (p.virt) return p.kusy.length;
   const rr = pocty(p.id), zak = jeVydMaj(p) ? num(udaj(p.id).zak) : null, sken = naskenovaneNaKarte(p.id);
   if (!rr.length && zak == null && !sken) return null;
   return rr.reduce((s, r) => s + (num(r.mn) || 0), 0) + (zak || 0) + sken;
@@ -825,6 +833,16 @@ function riadokHtml(p){
 let otvorene = null, poslLok = nacitajLS('inv-lucka-lok', '') || MIESTO_DEF;
 function otvorDetail(id){
   const p = MAPA[id]; if (!p) return;
+  if (p.virt) {   // výdajníky bez karty – len prehľad kusov, menia sa v záložke Výdajníky / Prehľad
+    otvorene = null;
+    $('#sheet').innerHTML = `<div class="hd"><div><h2>${esc(p.nazov)}</h2><div class="sub">Nájdené navyše · prevzaté mimo účtovníctva · 0 €</div></div><button class="x" data-zavriet type="button" aria-label="Zavrieť">×</button></div>
+      <div class="bd"><div class="expect"><span>Naskenované kusy</span><b>${p.kusy.length} ks</b></div>
+      <div class="note">V účtovníctve VODAXu pre tento model nie je karta, preto sa kusy preberajú mimo účtovníctva za 0 €. Kusy pribúdajú samy skenovaním v záložke Výdajníky. Ak kus predsa patrí na niektorú kartu, správca ho preradí v jeho detaile (Výdajníky → kus → Karta v účtovníctve) alebo v Prehľade.</div>
+      <div class="list">${p.kusy.map(vc => vydRiadok(vc)).join('')}</div></div>
+      <div class="ft"><span></span><span></span><button class="btn pri" type="button" data-zavriet>Hotovo</button></div>`;
+    $('#modal').classList.add('on');
+    return;
+  }
   otvorene = id;
   const u = udaj(id), sl = slepa();
   const info = [];
@@ -1339,6 +1357,7 @@ const nalezyVc = vc => (V && V.naVc[vc]) || [];
    Kus, pre ktorý nič nesedí (väčšinou staršie modely bez karty v účtovníctve), ostane nepriradený – priradí ho správca. */
 const jeVydKarta = p => p.skupina === 'Výdajníky v majetku' || p.skupina === 'Výdajníky – nové na sklade';
 const BEZ_KARTY = '-', ZAKAZNICKY = 'ZAK';
+const modelBez = vc => REG[vc] ? REG[vc].model.replace(/\s+/g, ' ').trim() : 'neznámy model (nie je v registri SPIN)';
 const kartaZPozn = r => { const m = /^karta:(\S+)/.exec(r.pozn || ''); return m ? m[1] : ''; };
 const naskenovaneNaKarte = id => (V && V.prir && V.prir.poKarte[id] || []).length;
 const kapacita = p => Math.max(0, (num(p.mn) || 0) - (jeVydMaj(p) ? num(udaj(p.id).zak) || 0 : 0));
@@ -1366,7 +1385,8 @@ function priradVydajniky(){
   for (const k of kusy) if (!kus[k.vc]) {
     if (REG[k.vc] && REG[k.vc].vlastnik) { kus[k.vc] = {id:ZAKAZNICKY, ako:'vlastník podľa SPIN'}; continue; }   // nie je majetok VODAXu
     const c = kandidatiKarty(REG[k.vc]);
-    if (!c.karty.length) { nepr.push(k.vc); continue; }
+    // dohoda 23. 10. 2026: kusy bez karty preberáme mimo účtovníctva (nájdené navyše, 0 €) – automaticky, správca to môže zmeniť
+    if (!c.karty.length) { daj(k.vc, BEZ_KARTY, 'automaticky – v účtovníctve VODAXu nie je karta'); nepr.push(k.vc); continue; }
     const p = c.karty.find(x => (poKarte[x.id] || []).length < kapacita(x)) || c.karty[c.karty.length - 1];
     daj(k.vc, p.id, c.ako);
   }
@@ -1375,7 +1395,8 @@ function priradVydajniky(){
 const nazovKarty = id => { const p = MAPA[id]; if (!p) return ''; const n = p.nazov.replace(/^V[ýy]dajn[íi]k[y]?\s*/i, '') || p.nazov + (p.zaradenie ? ' z ' + fmtD(String(p.zaradenie).slice(0, 10)) : '');
   return (p.typ === 'majetok' ? 'inv. č. ' + p.kod : 'kód ' + p.kod) + ' – ' + n; };
 const kartaKusu = vc => (V && V.prir && V.prir.kus[vc]) || null;
-const textKarty = vc => { const k = kartaKusu(vc); return !k ? (nalezyVc(vc).length ? 'bez karty – priradí správca' : '') : k.id === BEZ_KARTY ? 'prevzatý mimo účtovníctva (bez karty)'
+const bezKartyKusy = () => Object.keys((V && V.prir && V.prir.kus) || {}).filter(vc => V.prir.kus[vc].id === BEZ_KARTY);
+const textKarty = vc => { const k = kartaKusu(vc); return !k ? '' : k.id === BEZ_KARTY ? 'bez karty – nájdené navyše, prevzatý mimo účtovníctva (0 €)'
   : k.id === ZAKAZNICKY ? 'výdajník zákazníka – neodráta sa z kariet VODAXu' : 'karta ' + nazovKarty(k.id); };
 /** Priradí všetky nálezy kusu ku karte (id, BEZ_KARTY alebo '' = znova automaticky). */
 function priradKartu(vc, id){
@@ -1410,8 +1431,7 @@ function zapisNalez(text, lok){
   if (navigator.vibrate) navigator.vibrate(uz.length ? [60, 60, 60] : 70);
   const z = uz.length ? {k:'warn', t:'Pozor: už bol naskenovaný aj inde – ' + uz.map(n => (n.lok || 'bez miesta') + ' (' + (n.kto || '') + ')').join(', ')} : zhoda(v, lok);
   const k = kartaKusu(vc);
-  z.karta = k ? '→ ' + textKarty(vc) : '→ nie je ku ktorej karte priradiť – zapísaný, priradí správca';
-  if (!k && z.k === 'ok') z.k = 'info';
+  z.karta = k ? '→ ' + textKarty(vc) : '';
   zobrazPosledny(vc, z);
   return (z.k === 'ok' ? '✓ ' : '! ') + vc + ' · ' + (v ? v.model : 'neznámy') + ' · ' + z.t + ' ' + z.karta;
 }
@@ -1454,7 +1474,7 @@ function vykresliVyd(){
     (sl ? '' : `<div class="kpi"><div class="l">Na skladoch podľa SPIN</div><div class="v">${s.ocakN} / ${s.ocak.length}</div><div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></div>`) +
     `<div class="kpi"><div class="l">Nezhody so SPIN</div><div class="v warn">${s.navyse.length}</div><div class="note">u zákazníka / vyradené / neznáme</div></div>` +
     (sl ? '' : `<div class="kpi"><div class="l">Bez dokladu vo SPIN – nájdené</div><div class="v">${s.nezn.filter(v => s.najdeneSet.has(v.vc)).length} / ${s.nezn.length}</div></div>`);
-  const chips = [['naskenovane', 'Naskenované', s.najdene.length], ['nepriradene', 'Bez karty', V.prir.nepr.length], ['nezhody', 'Nezhody', s.navyse.length]]
+  const chips = [['naskenovane', 'Naskenované', s.najdene.length], ['nepriradene', 'Bez karty (navyše)', bezKartyKusy().length], ['nezhody', 'Nezhody', s.navyse.length]]
     .concat(sl ? [] : [['chyba', 'Ešte nenájdené na skladoch', s.ocak.length - s.ocakN], ['nezname', 'Bez dokladu vo SPIN', s.nezn.length]])
     .concat([['vsetky', 'Celý register', regN]]);
   if (!chips.some(c => c[0] === vChip)) vChip = 'naskenovane';
@@ -1462,7 +1482,7 @@ function vykresliVyd(){
   const q = norm($('#vHladaj').value), qv = vcNorm($('#vHladaj').value);
   let zoz;
   if (vChip === 'naskenovane') zoz = Object.values(V.nalezy).filter(r => !r.zmazane).sort((a, b) => String(b.cas).localeCompare(String(a.cas))).map(r => r.vc).filter((x, i, a) => a.indexOf(x) === i);
-  else if (vChip === 'nepriradene') zoz = V.prir.nepr.slice().reverse();
+  else if (vChip === 'nepriradene') zoz = bezKartyKusy().reverse();
   else if (vChip === 'nezhody') zoz = s.navyse;
   else if (vChip === 'chyba') zoz = s.ocak.filter(v => !s.najdeneSet.has(v.vc)).sort((a, b) => a.spinMiesto.localeCompare(b.spinMiesto, 'sk') || a.vc.localeCompare(b.vc)).map(v => v.vc);
   else if (vChip === 'nezname') zoz = s.nezn.map(v => v.vc);
@@ -1493,10 +1513,11 @@ function otvorKartuVyd(vc){
       <div class="fxs">Karta v účtovníctve VODAX</div>
       ${(() => { const k = kartaKusu(vc), c = kandidatiKarty(v);
         const t = !n.length ? (v && v.vlastnik ? 'Podľa SPIN patrí zákazníkovi – z kariet VODAXu sa neodráta.' : c.karty.length ? 'Po naskenovaní sa odráta z karty ' + nazovKarty(c.karty[0].id) + (c.karty.length > 1 ? ' (alebo ďalšej z ' + c.karty.length + ' kariet tohto typu)' : '') + ' – ' + c.ako + '.' : 'Pre tento kus nie je v účtovníctve karta – po naskenovaní ho priradí správca.')
-          : !k ? 'Nie je ku ktorej karte priradiť – v účtovníctve VODAXu nie je karta tohto modelu. Vyberte kartu alebo „Bez karty“.'
-          : k.id === BEZ_KARTY ? 'Prevzatý mimo účtovníctva (bez karty) – nastavil správca.'
+          : !k ? ''
+          : k.id === BEZ_KARTY ? (k.ako === 'ručne' ? 'Prevzatý mimo účtovníctva (nájdené navyše, 0 €) – nastavil správca.'
+            : 'V účtovníctve VODAXu nie je karta tohto modelu – prevzatý mimo účtovníctva ako nájdený navyše (0 €). Ak patrí na niektorú kartu, vyberte ju.')
           : k.id === ZAKAZNICKY ? 'Podľa SPIN patrí zákazníkovi – z kariet VODAXu sa neodráta. Ak je to omyl, vyberte kartu.' : 'Odrátaný z karty ' + nazovKarty(k.id) + ' – ' + k.ako + '.';
-        return `<div class="fxbox${n.length && !k ? '' : ' muted'}">${esc(t)}</div>` + (n.length && jeAdmin() ? `<div class="fld" style="margin-top:6px"><label for="vKarta">Priradiť ku karte</label><select id="vKarta" data-vc="${esc(vc)}">${moznostiKariet(k && k.ako === 'ručne' ? k.id : '')}</select></div>` : ''); })()}
+        return `<div class="fxbox muted">${esc(t)}</div>` + (n.length && jeAdmin() ? `<div class="fld" style="margin-top:6px"><label for="vKarta">Priradiť ku karte</label><select id="vKarta" data-vc="${esc(vc)}">${moznostiKariet(k && k.ako === 'ručne' ? k.id : '')}</select></div>` : ''); })()}
     </div>
     <button class="btn pri" type="button" data-nalez-tu="${esc(vc)}">Je tu – zapísať nález${vLok() ? ' (' + esc(vLok()) + ')' : ''}</button></div>`;
   $('#modal').classList.add('on');
@@ -1532,12 +1553,11 @@ function vykresliVydPrehlad(){
     <p class="note">Kusy, ktoré podľa SPIN majú byť na skladoch VODAX alebo boli vrátené od zákazníkov. Nájdené = naskenované kdekoľvek.</p>`;
   if (!jeAdmin()) return;
   const skup = {};
-  for (const vc of V.prir.nepr) { const v = REG[vc], k = v ? v.model : 'nie je v registri SPIN'; (skup[k] = skup[k] || []).push(vc); }
+  for (const vc of bezKartyKusy()) { const k = modelBez(vc); (skup[k] = skup[k] || []).push(vc); }
   const sz = Object.entries(skup).sort((a, b) => b[1].length - a[1].length);
-  const bez = Object.values(V.prir.kus).filter(k => k.id === BEZ_KARTY).length;
-  $('#tabVydNepr').innerHTML = (sz.length ? `<table><thead><tr><th>Model</th><th class="r">Kusov</th><th>Odrátať z karty</th></tr></thead><tbody>` +
-    sz.map(([m, a]) => `<tr><td>${esc(m)}</td><td class="r">${a.length}</td><td><select data-nepr-model="${esc(m)}" style="max-width:100%">${moznostiKariet('').replace('Automaticky (podľa kódu / modelu)', '— vybrať —')}</select></td></tr>`).join('') + '</tbody></table>'
-    : '<p class="muted small">Všetky naskenované kusy sú priradené ku kartám.</p>') + (bez ? `<p class="small" style="margin:6px 0 0">Prevzaté mimo účtovníctva (bez karty): <b>${bez} ks</b></p>` : '');
+  $('#tabVydNepr').innerHTML = sz.length ? `<table><thead><tr><th>Model</th><th class="r">Kusov</th><th>Preradiť na kartu</th></tr></thead><tbody>` +
+    sz.map(([m, a]) => `<tr><td>${esc(m)}</td><td class="r">${a.length}</td><td><select data-nepr-model="${esc(m)}" style="max-width:100%">${moznostiKariet('').replace('Automaticky (podľa kódu / modelu)', '— nechať bez karty —').replace(/<option value="-"[^>]*>[^<]*<\/option>/, '')}</select></td></tr>`).join('') +
+    `<tr><th>Spolu</th><th class="r">${bezKartyKusy().length}</th><th></th></tr></tbody></table>` : '<p class="muted small">Zatiaľ žiadne – všetky naskenované kusy sú na kartách.</p>';
   const mm = vydPoModeloch();
   const sum = mm.reduce((a, x) => ({ucet:a.ucet + x.ucet, spin:a.spin + x.spin, zak:a.zak + x.zak, naj:a.naj + x.naj}), {ucet:0, spin:0, zak:0, naj:0});
   $('#tabVydModely').innerHTML = !mm.length ? '<p class="muted small">Nič na porovnanie.</p>' :
@@ -1603,8 +1623,7 @@ function exportVydajniky(add){
   add('Výdajníky – po kartách', [['Karta (inv. č. / kód)','Názov','Účtovne','U zákazníkov (zadané)','Naskenované','Rozdiel']].concat(
     POLOZKY.filter(jeVydKarta).map(p => { const n = naskenovaneNaKarte(p.id), zk = jeVydMaj(p) ? num(udaj(p.id).zak) || 0 : 0;
       return [p.kod, p.nazov, num(p.mn), zk || null, n, n + zk - (num(p.mn) || 0)]; })
-    .concat([['bez karty', 'Naskenované, nepriradené ku karte', null, null, V.prir.nepr.length, null],
-      ['bez karty', 'Prevzaté mimo účtovníctva', null, null, Object.values(V.prir.kus).filter(k => k.id === BEZ_KARTY).length, null]])), [16,40,10,14,12,10]);
+    .concat([['bez karty', 'Nájdené navyše – prevzaté mimo účtovníctva (0 €)', null, null, bezKartyKusy().length, null]])), [16,40,10,14,12,10]);
   const s = vydStat();
   add('Výdajníky – nenájdené', [['Výrobné číslo','Ev. č.','Model','Vlastník','Podľa SPIN','Miesto vo SPIN','Mesto','Posl. sanitácia']].concat(
     s.ocak.filter(v => !s.najdeneSet.has(v.vc)).map(v => [v.vc, v.ev, v.model, v.vlastnik ? 'zákazník – ' + v.vlastnik : 'VODAX', SPIN_STAV[v.spinStav], v.spinMiesto, v.spinMesto, fmtD(v.sanitacia)])), [22,8,30,22,24,40,16,13]);
@@ -1740,8 +1759,8 @@ $('#skenVstup').addEventListener('change', e => { if (e.target.files[0]) kodZFot
 // Prehľad → nepriradené kusy jedného modelu naraz ku karte
 document.addEventListener('change', e => {
   const s = e.target.closest('[data-nepr-model]'); if (!s || !s.value) return;
-  const m = s.dataset.neprModel, kusy = V.prir.nepr.filter(vc => (REG[vc] ? REG[vc].model : 'nie je v registri SPIN') === m);
-  if (!confirm(`${kusy.length} ks „${m}“ → ${s.value === BEZ_KARTY ? 'bez karty (prevziať mimo účtovníctva)' : 'karta ' + nazovKarty(s.value)}?`)) { s.value = ''; return; }
+  const m = s.dataset.neprModel, kusy = bezKartyKusy().filter(vc => modelBez(vc) === m);
+  if (!confirm(`${kusy.length} ks „${m}“ preradiť na kartu ${nazovKarty(s.value)}?`)) { s.value = ''; return; }
   kusy.forEach(vc => priradKartu(vc, s.value));
   toast(`Priradené: ${kusy.length} ks`, 3000); vykresli();
 });
