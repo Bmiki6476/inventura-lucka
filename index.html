@@ -1,0 +1,1713 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#132232">
+<title>Inventúra Lucka</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Inventúra">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "65cfc50790";</script>
+
+<script>
+/* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
+window.onerror = function (m, s, l, c) {
+  var d = document.createElement('pre');
+  d.textContent = 'Chyba aplikácie: ' + m + ' (riadok ' + l + ':' + c + ')';
+  d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:999;margin:0;padding:10px;background:#fae3e1;color:#b3261e;font-size:13px;white-space:pre-wrap';
+  (document.body || document.documentElement).appendChild(d);
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+<style>
+/* rovnaký tmavomodrý vzhľad ako aplikácia Výdajníky Lucka (Flex štýl) */
+:root{
+  --bg:#0f1b27; --panel:#172738; --panel2:#1c3044; --ink:#e8f0f7; --muted:#8ea4b8; --line:#284057;
+  --accent:#2aa8e6; --accent-ink:#04131f; --accent-soft:#143a54;
+  --ok:#5fd08f; --ok-bg:#163526; --warn:#f2b45a; --warn-bg:#3a2a12; --bad:#ff8a80; --bad-bg:#3d1c1a;
+  --info:#7cc4ff; --info-bg:#15314a; --chip:#203549; --shadow:0 6px 18px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:860px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:0;z-index:20;background:#132232;border-bottom:2px solid var(--accent)}
+header.top .wrap{padding-top:10px;padding-bottom:10px}
+.titlerow{display:flex;align-items:center;gap:10px}
+.titlerow h1{font-size:17px;margin:0;font-weight:650;letter-spacing:-.01em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who{font-size:13px;padding:4px 10px;border-radius:999px;background:var(--chip);border:0;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{margin-top:8px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.bar{flex:1;height:8px;border-radius:99px;background:var(--chip);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .3s}
+.sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;border:0;background:none;padding:0;color:var(--muted)}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.sync.cak i{background:var(--warn)} .sync.off i{background:var(--bad)}
+main{padding-top:12px}
+.tab{display:none}.tab.on{display:block}
+.filters{display:grid;gap:8px;margin-bottom:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row>*{min-width:0}
+select{max-width:100%;text-overflow:ellipsis}
+select,input[type=text],input[type=search],input[type=number],input[type=date],input[type=password],textarea{
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+textarea{min-height:70px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 12px;font-size:13px;white-space:nowrap}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chip b{font-weight:600;opacity:.75;margin-left:4px}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);user-select:none}
+.toggle input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.group{margin:16px 0 8px;display:flex;align-items:baseline;gap:8px}
+.group h2{font-size:14px;margin:0;font-weight:650;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.group span{font-size:13px;color:var(--muted)}
+.list{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.item{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;width:100%;box-shadow:var(--shadow)}
+.item .main{flex:1;min-width:0}
+.item .name{font-weight:560;overflow:hidden;text-overflow:ellipsis}
+.item .sub{font-size:12.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .qty{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.item .qty .n{font-weight:650;font-size:16px}
+.item .qty .e{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.p-nie{background:var(--chip);color:var(--muted)}
+.p-ok{background:var(--ok-bg);color:var(--ok)}
+.p-manko{background:var(--bad-bg);color:var(--bad)}
+.p-prebytok{background:var(--warn-bg);color:var(--warn)}
+.p-navyse{background:var(--info-bg);color:var(--info)}
+.p-spoc{background:var(--accent-soft);color:var(--accent)}
+.empty-state{text-align:center;color:var(--muted);padding:40px 10px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px 14px;min-height:44px;font-weight:560}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn.small{min-height:36px;padding:6px 10px;font-size:13.5px}
+.btn:disabled{opacity:.5}
+.addbtn{width:100%;margin-top:14px;border-style:dashed}
+nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.bottom .wrap{display:flex}
+nav.bottom button{flex:1;border:0;background:none;padding:10px 4px 12px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+nav.bottom button.on{color:var(--accent);font-weight:650}
+nav.bottom svg{width:22px;height:22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 10px;font-size:15px}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+@media (min-width:640px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .v.bad{color:var(--bad)} .kpi .v.warn{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600}
+td.r,th.r{text-align:right;white-space:nowrap}
+.tscroll{overflow-x:auto}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.checkrow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}
+.checkrow:last-child{border-bottom:0}
+.checkrow input[type=checkbox]{width:22px;height:22px;margin-top:1px;accent-color:var(--accent);flex:none}
+.checkrow .t{flex:1}
+.checkrow .meta{font-size:12px;color:var(--muted)}
+.actions{display:grid;gap:8px}
+@media (min-width:640px){.actions{grid-template-columns:1fr 1fr}}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.dl dt{color:var(--muted)}
+.dl dd{margin:0;min-width:0;overflow-wrap:anywhere}
+/* modal */
+.modal{position:fixed;inset:0;z-index:50;display:none;background:rgba(0,0,0,.45);align-items:flex-end;justify-content:center}
+.modal.on{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;overflow-x:hidden;border-radius:18px 18px 0 0;padding:0 0 calc(16px + env(safe-area-inset-bottom))}
+@media (min-width:700px){.modal{align-items:center}.sheet{border-radius:18px;max-height:88vh}}
+.sheet .hd{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:10px;align-items:flex-start;z-index:2}
+.sheet .hd h2{font-size:16px;margin:0;line-height:1.3}
+.sheet .hd .sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+.sheet .hd .x{margin-left:auto;border:0;background:var(--chip);border-radius:99px;width:34px;height:34px;flex:none;font-size:18px;line-height:1}
+.sheet .bd{padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.fld label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;font-weight:560}
+.stepper{display:flex;gap:6px;align-items:stretch}
+.stepper button{width:52px;border:1px solid var(--line);background:var(--panel);border-radius:10px;font-size:22px;font-weight:500}
+.stepper input{min-width:0;flex:1;text-align:center;font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.expect{display:flex;justify-content:space-between;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
+.expect b{font-variant-numeric:tabular-nums}
+.pocty{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.pocet{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 6px 8px 12px}
+.pocet .n{font-weight:650;font-size:17px;font-variant-numeric:tabular-nums;min-width:48px}
+.pocet .t{flex:1;min-width:0;font-size:13px}
+.pocet .t div{color:var(--muted);font-size:12px}
+.pocet.cak{border-style:dashed}
+.pocet button{border:0;background:var(--chip);border-radius:8px;width:32px;height:32px;line-height:1;flex:none}
+.novy{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px}
+.serials{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.serial{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 4px 4px 9px;font-size:13px;font-family:ui-monospace,Consolas,monospace}
+.serial button{border:0;background:var(--chip);border-radius:6px;width:24px;height:24px;line-height:1}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.fld{min-width:0}
+.ft{display:flex;gap:8px;justify-content:space-between;align-items:center;padding:0 16px}
+.note{font-size:12.5px;color:var(--muted)}
+.diffbox{display:grid;gap:6px;font-size:14px}
+.diffbox .sec{font-weight:650;margin-top:6px}
+.scan{position:fixed;inset:0;z-index:60;background:#000;display:none;flex-direction:column}
+.scan.on{display:flex}
+.scan video{flex:1;width:100%;object-fit:cover;min-height:0}
+.scan .bar2{padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:#111;color:#fff;display:flex;gap:10px;align-items:center}
+.scan .bar2 .msg{flex:1;font-size:14px}
+/* režim fotky: Google aplikáciu spúšťa v rámčeku bez povolenia kamery – skenuje sa cez fotoaparát telefónu */
+.scan.foto-rezim{justify-content:flex-end;background:#0b1520}
+.scan.foto-rezim video{display:none}
+.scan .bar2{flex-wrap:wrap}
+.scan .info{display:none;color:#c7d6cf;font-size:14px;line-height:1.5;flex:1 1 100%}
+.scan.foto-rezim .info{display:block}
+.scan #scanFotoBtn{display:none}
+.scan.foto-rezim #scanFotoBtn{display:block;flex:1 1 100%;min-height:60px;font-size:17px;order:3}
+.foto{position:fixed;inset:0;z-index:65;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:16px}
+.foto.on{display:flex}
+.foto img{max-width:100%;max-height:100%;border-radius:8px}
+.login{position:fixed;inset:0;z-index:80;background:var(--bg);display:none;align-items:center;justify-content:center;padding:16px}
+.login.on{display:flex}
+.login .card{width:100%;max-width:400px;display:grid;gap:12px;margin:0}
+.login h2{margin:0;font-size:20px}
+.err{color:var(--bad);font-size:13.5px;min-height:1.2em}
+.qr{display:flex;justify-content:center;padding:10px;background:#fff;border-radius:10px;margin-top:10px}
+.pin{font-family:ui-monospace,Consolas,monospace;font-size:20px;font-weight:650;letter-spacing:.12em}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+.toast.on{opacity:1}
+.admin-only{display:none} body.admin .admin-only{display:block}
+/* Flex štýl: značka, úvodná obrazovka s dlaždicami */
+.brand{display:flex;align-items:center;gap:8px}
+.brand svg{width:24px;height:24px;color:var(--accent);flex:none}
+.brand b{color:var(--accent);font-weight:700}
+.login .brand{font-size:20px}
+.login .brand svg{width:30px;height:30px}
+.hello{margin:6px 0 14px}
+.hello h2{margin:0;font-size:21px;font-weight:650}
+.hello .s{color:var(--muted);font-size:13.5px;margin-top:2px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:640px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.tile{position:relative;background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:16px 14px;min-height:116px;
+  display:flex;flex-direction:column;justify-content:space-between;gap:10px;text-align:left;box-shadow:var(--shadow)}
+.tile:active{transform:scale(.98)}
+.tile svg{width:36px;height:36px;color:var(--accent)}
+.tile .t{font-weight:650;font-size:15.5px;line-height:1.25}
+.tile .s{font-size:12.5px;color:var(--muted);margin-top:2px}
+.tile .b2{position:absolute;top:10px;right:10px;background:var(--bad);color:#fff;border-radius:99px;font-size:12px;font-weight:700;padding:1px 9px}
+.miesto{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:12px 0}
+.miesto svg{width:22px;height:22px;color:var(--accent);flex:none}
+.miesto label{font-size:12px;color:var(--muted);display:block}
+.miesto input{border:0;background:none;padding:0;min-height:0;font-weight:600}
+.miesto input:focus{outline:0}
+/* výdajníky po kusoch */
+.vhero{background:linear-gradient(135deg,#17324a,#1f5f8b);color:#fff;border-radius:16px;padding:16px;margin-bottom:12px;display:grid;gap:12px;box-shadow:var(--shadow)}
+.vhero h2{margin:0;font-size:17px;font-weight:650}
+.vhero .sub{font-size:13px;opacity:.8;margin-top:2px}
+.vhero label{font-size:12.5px;opacity:.85;display:block;margin-bottom:4px}
+.vhero input{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:#fff}
+.vhero input::placeholder{color:rgba(255,255,255,.6)}
+.vscan{display:flex;align-items:center;justify-content:center;gap:10px;min-height:58px;border:0;border-radius:12px;background:#4fb3ef;color:#06233a;font-size:17px;font-weight:700;width:100%}
+.vscan svg{width:26px;height:26px}
+.vrow{display:flex;gap:8px}.vrow>*{min-width:0}
+.vrow .btn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.25);color:#fff;flex:none}
+.vlast{background:rgba(255,255,255,.1);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
+.vlast b{font-family:ui-monospace,Consolas,monospace}
+.vlast .i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700}
+.vlast .i.ok{background:#72cf98;color:#0b2a17}.vlast .i.warn{background:#f0b45c;color:#3a2604}.vlast .i.bad{background:#f28b82;color:#3b0d0a}
+.bars{display:grid;gap:8px}
+.barrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:13.5px}
+.barrow .bar{grid-column:1/-1;height:7px}
+.barrow .n{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.p-zak{background:var(--info-bg);color:var(--info)}
+.fx{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
+.fx .fxh{background:#17324a;color:#fff;padding:12px 14px}
+.fx .fxh .vc{font-family:ui-monospace,Consolas,monospace;font-size:18px;font-weight:700;letter-spacing:.02em}
+.fx .fxh .m{font-size:13.5px;opacity:.85;margin-top:2px}
+.fx table{font-size:13.5px}
+.fx th{background:var(--panel2)}
+.fx .fxs{padding:8px 14px;font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--panel2);border-top:1px solid var(--line)}
+.fx dl{padding:10px 14px;margin:0}
+.fxbox{padding:10px 14px;font-size:13.5px}
+#tlac{display:none}
+@media print{
+  body{background:#fff;color:#000;padding:0}
+  body>*:not(#tlac){display:none!important}
+  #tlac{display:block;font-size:11pt}
+  #tlac h1{font-size:16pt;margin:0 0 4pt}
+  #tlac table{font-size:9.5pt}
+  #tlac th,#tlac td{border-bottom:1px solid #999;padding:3pt 4pt}
+  .podpisy{display:grid;grid-template-columns:1fr 1fr;gap:30pt;margin-top:36pt}
+  .podpisy div{border-top:1px solid #000;padding-top:4pt}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="titlerow">
+      <h1 class="brand"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="10" y="3" width="5" height="5" rx="1" opacity=".75"/><rect x="17" y="3" width="4" height="5" rx="1" opacity=".5"/><rect x="3" y="10" width="5" height="5" rx="1" opacity=".75"/><rect x="10" y="10" width="5" height="5" rx="1"/><rect x="3" y="17" width="5" height="4" rx="1" opacity=".5"/></svg><span>Inventúra <b>Lucka</b></span></h1>
+      <button class="sync" id="syncBtn" type="button"><i></i><span id="syncTxt">…</span></button>
+      <button class="who" id="whoBtn" type="button"></button>
+    </div>
+    <div class="prog"><span id="progTxt"></span><div class="bar"><i id="progBar"></i></div><span id="progPct"></span></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- DOMOV -->
+  <section class="tab on" id="tab-domov">
+    <div class="hello" id="dHello"></div>
+    <div class="tiles" id="dTiles"></div>
+    <div class="miesto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+      <div style="flex:1;min-width:0"><label for="dLokDomov">Kde práve počítam (predvyplní sa k počtom aj k výdajníkom)</label><input type="text" id="dLokDomov" list="lokacie"></div></div>
+    <div class="group"><h2>Moje dnešné záznamy</h2></div>
+    <div class="kpis" id="dMoje"></div>
+  </section>
+
+  <!-- SÚPIS -->
+  <section class="tab" id="tab-supis">
+    <div class="filters">
+      <div class="row">
+        <select id="fSklad" style="flex:1 1 220px"></select>
+        <input type="search" id="fHladaj" placeholder="Hľadať názov, kód, výrobné číslo…" style="flex:2 1 220px">
+      </div>
+      <div class="chips" id="fSkupiny"></div>
+      <div class="chips" id="fStav"></div>
+      <label class="toggle admin-only" style="display:none" id="fSlepaWrap"><input type="checkbox" id="fSlepa"> Slepá inventúra (skryť účtovné množstvá a ceny)</label>
+    </div>
+    <div id="zoznam"></div>
+    <button class="btn addbtn" id="pridatBtn" type="button">+ Pridať nájdenú vec, ktorá nie je v zozname</button>
+  </section>
+
+  <!-- VÝDAJNÍKY PO KUSOCH -->
+  <section class="tab" id="tab-vyd">
+    <div class="vhero">
+      <div><h2>Výdajníky po kusoch</h2><div class="sub" id="vSub">Naskenujte QR kód na každom výdajníku – aplikácia ho nájde v registri zo SPIN.</div></div>
+      <div><label for="vLok">Kde skenujem</label><input type="text" id="vLok" list="lokacie" placeholder="napr. Sklad HV Lúka, regál A"></div>
+      <button class="vscan" type="button" id="vSkenBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 12h10"/></svg>Skenovať výdajníky</button>
+      <div class="vrow"><input type="text" id="vRucne" placeholder="alebo napíšte výrobné / evidenčné číslo" autocomplete="off" style="flex:1"><button class="btn small" type="button" id="vRucneBtn">Zapísať</button><button class="btn small" type="button" id="vFotoBtn">Odfotiť kód</button></div>
+      <div id="vPosledny"></div>
+    </div>
+    <div class="kpis" id="vKpi"></div>
+    <div class="chips" id="vChips" style="margin-bottom:10px"></div>
+    <input type="search" id="vHladaj" placeholder="Hľadať výrobné číslo, model, miesto…" style="margin-bottom:10px">
+    <div id="vZoznam"></div>
+  </section>
+
+  <!-- PREHĽAD -->
+  <section class="tab" id="tab-prehlad">
+    <div class="note" id="rozsahTxt" style="margin-bottom:8px"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="card"><h3>Po skupinách</h3><div class="tscroll" id="tabSkupiny"></div></div>
+    <div class="card"><h3>Kto koľko spočítal</h3><div class="tscroll" id="tabLudia"></div></div>
+    <div class="card admin-only"><h3>Výdajníky – porovnanie s účtovníctvom po modeloch</h3><div class="tscroll" id="tabVydModely"></div>
+      <p class="note">Účtovne = karty majetku + nové na sklade s rovnakým modelom a rokom. SPIN = naše aktívne výdajníky (bez zákazníckych). Spolu = u zákazníkov podľa SPIN + nájdené pri inventúre.</p></div>
+    <div class="card"><h3>Výdajníky – po skladoch podľa SPIN</h3><div class="tscroll" id="tabVydSklady"></div></div>
+    <div class="card admin-only"><h3>Barely 18,9 l – nákupy po rokoch a ocenenie</h3><div class="tscroll" id="tabBarely"></div>
+      <p class="note" id="barelyPozn"></p></div>
+    <div class="card admin-only"><h3>Rozdiely</h3><div class="tscroll" id="tabRozdiely"></div></div>
+    <div class="card admin-only"><h3>Doklady a kontrolné body</h3><div id="kontroly"></div></div>
+    <div class="card admin-only">
+      <h3>Výstupy</h3>
+      <div class="actions">
+        <button class="btn pri" id="exportXlsx" type="button">Stiahnuť protokol (Excel)</button>
+        <button class="btn" id="tlacBtn" type="button">Vytlačiť preberací protokol</button>
+        <button class="btn" id="supisBtn" type="button">Prepočítať hárok Súpis v Google tabuľke</button>
+      </div>
+      <p class="note" id="supisInfo">Všetky záznamy sú priebežne v Google tabuľke (hárky Počty, Údaje, Navyše, História). Hárok Súpis je ich čitateľný prehľad.</p>
+    </div>
+  </section>
+
+  <!-- DÁTA -->
+  <section class="tab" id="tab-data">
+    <div class="card">
+      <h3>Kto počíta</h3>
+      <input type="text" id="ktoInput" placeholder="Meno a priezvisko" autocomplete="name">
+      <p class="note" id="rolaInfo"></p>
+      <button class="btn small" id="odhlasBtn" type="button">Odhlásiť z tohto mobilu</button>
+    </div>
+    <div class="card">
+      <h3>Synchronizácia</h3>
+      <dl class="dl" id="syncInfo"></dl>
+      <div class="actions" style="margin-top:12px"><button class="btn" id="syncTerazBtn" type="button">Synchronizovať teraz</button></div>
+      <p class="note">Každá zmena sa hneď posiela do spoločnej databázy. Keď v sklade nie je signál, zmeny čakajú v mobile a odošlú sa samé, keď sa mobil znova pripojí. Kým čakajú, nezatvárajte prehliadač natrvalo a neodhlasujte sa.</p>
+    </div>
+    <div class="card admin-only">
+      <h3>Skladníci</h3>
+      <p class="note" style="margin-top:0">Pošlite im odkaz (alebo nech naskenujú QR kód) a povedzte im kód skladníka. Účet nepotrebujú.</p>
+      <dl class="dl" id="pozvanka"></dl>
+      <div class="qr" id="qr" hidden></div>
+      <label class="toggle" style="margin-top:12px"><input type="checkbox" id="slepaSklad"> Slepá inventúra – skladníci nevidia účtovné množstvá</label>
+      <p class="note">Ceny a hodnoty skladníkom server neposiela nikdy. Kód skladníka zmeníte v Google tabuľke v hárku Nastavenia (napr. po skončení inventúry).</p>
+    </div>
+    <div class="card admin-only">
+      <h3>Register výdajníkov zo SPIN</h3>
+      <dl class="dl" id="vydRegInfo"></dl>
+      <div class="actions" style="margin-top:12px"><button class="btn pri" id="vydRegBtn" type="button">Nahrať register (Excel zo SPIN)</button></div>
+      <input type="file" id="vydReg" accept=".xlsx,.xls,.xlsm" hidden>
+      <p class="note">Zostava „Evidencia výdajníkov“ od Grafobalu (hárok Výdajníky (dump)). Nové nahratie register prepíše, naskenované nálezy ostávajú.</p>
+    </div>
+    <div class="card admin-only">
+      <h3>Zoznam majetku</h3>
+      <dl class="dl" id="verziaInfo"></dl>
+      <div class="fld" style="margin-top:12px">
+        <label for="stavKInput">Stav k (text do protokolu)</label>
+        <input type="text" id="stavKInput" placeholder="napr. 31. 10. 2026">
+      </div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn pri" id="nahratBtn" type="button">Nahrať zoznam z Excelu</button>
+      </div>
+      <input type="file" id="nahrat" accept=".xlsx,.xls,.xlsm" hidden>
+      <p class="note">Excel ako od Horeckého: hárok s kartami majetku (Inventárne číslo, Názov majetku, Množstvo…) a hárok so skladmi (Kód produktu, Názov produktu, Množstvo, Názov skladu). Pri novej verzii napočítané údaje zostanú – párujú sa podľa inventárneho čísla, resp. kódu produktu a skladu.</p>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom">
+  <div class="wrap">
+    <button class="on" data-tab="domov" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Domov</button>
+    <button data-tab="supis" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Súpis</button>
+    <button data-tab="vyd" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 7h4M9 12h2M13 12h2"/></svg>Výdajníky</button>
+    <button data-tab="prehlad" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Prehľad</button>
+    <button data-tab="data" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Nastavenia</button>
+  </div>
+</nav>
+
+<div class="login" id="login">
+  <form class="card" id="loginForm" autocomplete="on">
+    <h2 class="brand"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="10" y="3" width="5" height="5" rx="1" opacity=".75"/><rect x="17" y="3" width="4" height="5" rx="1" opacity=".5"/><rect x="3" y="10" width="5" height="5" rx="1" opacity=".75"/><rect x="10" y="10" width="5" height="5" rx="1"/><rect x="3" y="17" width="5" height="4" rx="1" opacity=".5"/></svg><span>Inventúra <b>Lucka</b></span></h2>
+    <p class="note" style="margin:0">Preberanie majetku, výdajníkov, barelov a náhradných dielov. Prihlasuje sa kódom, ktorý ste dostali.</p>
+    <div class="fld"><label for="lMeno">Vaše meno a priezvisko</label><input type="text" id="lMeno" autocomplete="name" required></div>
+    <div class="fld"><label for="lPin">Kód</label><input type="password" id="lPin" inputmode="numeric" autocomplete="current-password" required></div>
+    <div class="err" id="lErr"></div>
+    <button class="btn pri" type="submit" id="lBtn">Prihlásiť</button>
+  </form>
+</div>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="scan" id="scan"><video id="scanVideo" playsinline muted></video><div class="bar2"><div class="info">Ťuknite na <b>Odfotiť kód</b> – otvorí sa fotoaparát. Odfoťte QR štítok zblízka a potvrďte fotku.</div><div class="msg" id="scanMsg">Namierte na čiarový alebo QR kód</div><button class="btn small" id="scanStop" type="button">Hotovo</button><button class="btn pri" id="scanFotoBtn" type="button">Odfotiť kód</button></div></div>
+<div class="foto" id="foto"><img id="fotoImg" alt="Fotka položky"></div>
+<input type="file" id="fotoVstup" accept="image/*" capture="environment" hidden>
+<input type="file" id="skenVstup" accept="image/*" capture="environment" hidden>
+<div class="toast" id="toast"></div>
+<div id="tlac"></div>
+<datalist id="lokacie"></datalist>
+
+<script>
+'use strict';
+const K_CONF = 'inv-lucka-conf-v1', K_CACHE = 'inv-lucka-cache-v1', K_OUT = 'inv-lucka-out-v1';
+
+const SKUPINY = ['Barelová linka','Vozidlá','Výdajníky v majetku','Výdajníky – nové na sklade','Barely a zálohové obaly',
+  'Palety, preložky, zakladače','CO2 fľaše a ventily','Poháriky a tubusy','Uzávery a etikety','Náhradné diely a príslušenstvo',
+  'Ostatný majetok','Ostatné'];
+const SO_SERIOVYMI = new Set(['Barelová linka','Vozidlá','Výdajníky v majetku','Výdajníky – nové na sklade','CO2 fľaše a ventily']);
+/* miesto ako v aplikácii Výdajníky (sklad BUDIS-LUKA „BUDIŠ Lúka“); podrobnejšie miesta sa dajú dopísať za pomlčku */
+const MIESTO_DEF = 'BUDIŠ Lúka';
+const LOKACIE = ['BUDIŠ Lúka','BUDIŠ Lúka – sklad','BUDIŠ Lúka – hala barelovej linky','BUDIŠ Lúka – dvor','BUDIŠ Lúka – údržba','BUDIŠ Lúka – expedícia','Sklad HV Lúka'];
+/* nové body len pridávať na koniec – odškrtnutie sa ukladá podľa poradia („skupina#index“) */
+const KONTROLY = {
+  'Barelová linka':['Technická dokumentácia a návody (NATE Diona)','Elektrické schémy','Zálohy programov PLC a HMI','Prístupové heslá a vzdialený prístup',
+    'Vyhlásenie o zhode / CE','Revízne správy (elektro, tlakové zariadenia)','Zoznam a sklad náhradných dielov','Zaškolenie obsluhy a údržby',
+    'Preberacie protokoly inv. č. 22057, 22060, 22070 podpísané s p. Mihálikom',
+    'Protokol na inv. č. 22071 Technológia k Bareltribloku (39 135 €) – VODAX ho nedodal, doplniť a podpísať'],
+  'Vozidlá':['Leasingové zmluvy a splátkové kalendáre (UniCredit)','Poistné zmluvy (PZP, havarijné)','Servisné knižky',
+    'Preberacie protokoly inv. č. 26019, 26022–26025 podpísané',
+    'Technické preukazy, kľúče aj náhradné, STK/EK, stav km, tankovacie karty'],
+  'Výdajníky v majetku':['Export z databázy výdajníkov (Flex Mobility) – výrobné čísla, zákazník, adresa','Zmluvy o nájme výdajníkov so zákazníkmi',
+    'Plán sanitácie výdajníkov u zákazníkov',
+    'Preberacie protokoly inv. č. 31037–31040, 31047–31069 podpísané',
+    'Protokol inv. č. 31059 opravený (v texte bolo uvedené 22059)',
+    'Export z Asseca k 30. 9. (termín 26. 10.) nahratý do aplikácie Výdajníky',
+    'Zoznam typov výdajníkov pre karty v systéme (do 1. 11.) – export z aplikácie Výdajníky',
+    'Výdajníky na vyradenie vyradené a zlikvidované VODAXom pred odovzdaním (okrem kusov na diely)'],
+  'CO2 fľaše a ventily':['Certifikáty a platnosť tlakových skúšok CO2 fliaš'],
+  'Barely a zálohové obaly':['Evidencia barelov u zákazníkov (zálohy)','Vyrovnanie vratných obalov a zábezpeky METRO',
+    'Prehľad nákupov a vyradení barelov po rokoch (VODAX, opravený 22. 10.)',
+    'Stav barelov k 31. 10. po skladoch a po zákazníkoch so zálohami (obalové kontá)',
+    'Ocenenie barelov a výdajníkov potvrdené audítorom / daňovým poradcom'],
+  'Externé sklady a medzisklady':['Stav k 31. 10. na skladoch BA (WHITE logistics, Adela Trade), Prešov a medziskladoch MS – potvrdenie skladovateľa',
+    'Písomne p. Potočkovej (VODAX): ktoré medzisklady ponechávame a ktoré končia',
+    'Obalové kontá medziskladov prevedené (pri skladoch, ktoré končia)'],
+  'Celé prevzatie':['Písomné predĺženie splatnosti od VODAXu (podmienka podpisu protokolu)',
+    'Súhrnný preberací protokol podpísaný oboma stranami']
+};
+
+/* ---------- pomocné ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const num = v => { if (v === null || v === undefined || v === '') return null; const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/\s/g,'').replace(',','.')); return isFinite(n) ? n : null; };
+const fmtN = n => n == null ? '–' : Number(n).toLocaleString('sk-SK',{maximumFractionDigits:2});
+const fmtE = n => n == null ? '–' : Number(n).toLocaleString('sk-SK',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+const fmtD = s => { if (!s) return ''; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${+m[3]}. ${+m[2]}. ${m[1]}` : String(s); };
+const fmtCas = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? String(iso) : d.toLocaleString('sk-SK',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}); };
+const dnes = () => { const x = new Date(); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+const noveId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+function toast(t, ms){ const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), ms || 2400); }
+function nacitajLS(k, def){ try { const v = JSON.parse(localStorage.getItem(k)); return v ?? def; } catch(e) { return def; } }
+let lsChyba = false;
+function ulozLS(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) { if (!lsChyba) toast('Mobil neukladá údaje lokálne – nezatvárajte stránku, kým sa všetko neodošle.'); lsChyba = true; } }
+
+/* ---------- server ---------- */
+function api(fn, ...args){
+  // inštalovateľná appka (GitHub Pages) volá server cez POST; v appke na Googli ide cez google.script.run
+  if (window.API_URL) {
+    const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 150000);
+    return fetch(API_URL, {method:'POST', body:JSON.stringify({fn, args}), redirect:'follow', signal:ctrl.signal})
+      .catch(e => { throw new Error(e && e.name === 'AbortError' ? 'Spojenie trvá príliš dlho' : 'NetworkError: ' + (e && e.message || 'bez spojenia')); })
+      .then(r => { if (!r.ok) throw new Error('NetworkError: server ' + r.status); return r.json().catch(() => { throw new Error('NetworkError: server odpovedal nezrozumiteľne'); }); })
+      .then(o => { if (o.error) throw new Error(o.error); return o.result; })
+      .finally(() => clearTimeout(t));
+  }
+  return new Promise((ok, ko) => {
+    if (!window.google || !google.script || !google.script.run) { ko(new Error('Toto je len súbor z disku – aplikácia funguje až cez odkaz z Google (…/exec) po nasadení podľa NAVOD.md.')); return; }
+    google.script.run.withSuccessHandler(ok).withFailureHandler(e => ko(e instanceof Error ? e : new Error(String((e && e.message) || e))))[fn](...args);
+  });
+}
+const jeChybaKodu = e => /Nesprávny kód|Na toto treba kód/.test(e && e.message || '');
+
+/* ---------- stav ---------- */
+// C = prihlásenie a filtre (tento mobil), SRV = posledný stav zo servera, OUT = zmeny čakajúce na odoslanie
+let C = Object.assign({pin:'', kto:'', filtre:{}}, nacitajLS(K_CONF, {}));
+C.filtre = Object.assign({sklad:'__luka', skupina:'', stav:'', slepa:false, hladaj:''}, C.filtre || {});
+let SRV = nacitajLS(K_CACHE, null);
+let OUT = nacitajLS(K_OUT, []);
+let V = null, POLOZKY = [], MAPA = {};
+let poslednaSync = null, online = null;
+
+const ulozConf = () => ulozLS(K_CONF, C);
+const ulozCache = () => ulozLS(K_CACHE, SRV);
+const ulozOut = () => ulozLS(K_OUT, OUT);
+const jeAdmin = () => !!SRV && SRV.rola === 'admin';
+const slepa = () => !SRV || SRV.meta.slepa || (jeAdmin() && C.filtre.slepa);
+const vidiCeny = () => jeAdmin() && !C.filtre.slepa;
+
+function naMapu(arr, k){ const o = {}; for (const r of arr || []) o[r[k]] = r; return o; }
+
+/** Zmena = operácia; rovnako ju aplikuje mobil (hneď) aj server (po odoslaní). */
+function aplikuj(v, op){
+  if (op.t === 'pocet') {
+    v.pocty[op.lineId] = Object.assign({}, v.pocty[op.lineId], {lineId:op.lineId, itemId:op.itemId, mn:op.mn, pok:op.pok, lok:op.lok, zmazane:!!op.zmazane, kto:op.kto, cas:op.cas, cak:true});
+  } else if (op.t === 'udaj') {
+    const s = v.udaje[op.itemId] || {itemId:op.itemId, pozn:'', zak:null, vc:[], voz:{}, fotky:[]};
+    const u = Object.assign({}, s, {vc:[...(s.vc || [])], voz:Object.assign({}, s.voz), fotky:[...(s.fotky || [])], kto:op.kto, cas:op.cas});
+    const p = op.patch || {};
+    if ('pozn' in p) u.pozn = p.pozn;
+    if ('zak' in p) u.zak = num(p.zak);
+    if (p.voz) Object.assign(u.voz, p.voz);
+    for (const x of op.vcAdd || []) if (!u.vc.includes(x)) u.vc.push(x);
+    for (const x of op.vcDel || []) u.vc = u.vc.filter(y => y !== x);
+    for (const x of op.fotkyDel || []) u.fotky = u.fotky.filter(y => y !== x);
+    v.udaje[op.itemId] = u;
+  } else if (op.t === 'navyse') {
+    v.navyse[op.id] = {id:op.id, nazov:op.nazov, skupina:op.skupina, mj:op.mj, zmazane:!!op.zmazane, kto:op.kto, cas:op.cas};
+  } else if (op.t === 'kontrola') {
+    v.kontroly[op.key] = {key:op.key, ok:!!op.ok, kto:op.kto, cas:op.cas};
+  } else if (op.t === 'nalez') {
+    v.nalezy[op.lineId] = {lineId:op.lineId, vc:op.vc, lok:op.lok, pozn:op.pozn || '', zmazane:!!op.zmazane, kto:op.kto, cas:op.cas, cak:true};
+  }
+}
+function obnovView(){
+  if (!SRV) { V = null; POLOZKY = []; MAPA = {}; return; }
+  V = {pocty:Object.assign({}, SRV.pocty), udaje:Object.assign({}, SRV.udaje), navyse:Object.assign({}, SRV.navyse), kontroly:Object.assign({}, SRV.kontroly),
+    nalezy:Object.assign({}, SRV.nalezy || {})};
+  for (const op of OUT) aplikuj(V, op);
+  postavRegister();
+  V.naVc = {};
+  for (const r of Object.values(V.nalezy)) if (!r.zmazane) {
+    let vc = r.vc;
+    if (!REG[vc]) { const n = najdiVydajnik(vc); if (n.kusy.length === 1) vc = n.kusy[0].vc; }
+    (V.naVc[vc] = V.naVc[vc] || []).push(r);
+  }
+  V.poItem = {};
+  for (const r of Object.values(V.pocty)) if (!r.zmazane) (V.poItem[r.itemId] = V.poItem[r.itemId] || []).push(r);
+  for (const a of Object.values(V.poItem)) a.sort((x, y) => String(x.cas).localeCompare(String(y.cas)));
+  const navyse = Object.values(V.navyse).filter(n => !n.zmazane).map(n => ({id:n.id, typ:'navyse', kod:'—', nazov:n.nazov, skupina:n.skupina || 'Ostatné', mj:n.mj || 'ks',
+    sklad:'Nájdené pri inventúre', mn:0, hodnota:0, jc:0, kto:n.kto}));
+  POLOZKY = (SRV.polozky || []).concat(navyse);
+  MAPA = Object.fromEntries(POLOZKY.map(p => [p.id, p]));
+}
+
+/** Pridá zmenu do fronty, hneď ju ukáže a naplánuje odoslanie. */
+function zmen(op){
+  op.kto = C.kto || ''; op.cas = new Date().toISOString();
+  const posl = OUT[OUT.length - 1];
+  // písanie do poznámky a pod. sa zlúči do jednej zmeny, kým sa neodošle
+  if (posl && !posl.odosiela && op.t === 'udaj' && posl.t === 'udaj' && posl.itemId === op.itemId && op.patch && !op.vcAdd && !op.vcDel && !op.fotkyDel && !posl.vcAdd && !posl.vcDel && !posl.fotkyDel) {
+    const pp = posl.patch || {};
+    posl.patch = Object.assign({}, pp, op.patch, op.patch.voz || pp.voz ? {voz:Object.assign({}, pp.voz, op.patch.voz)} : {});
+    posl.kto = op.kto; posl.cas = op.cas;
+  } else OUT.push(op);
+  ulozOut(); obnovView(); obnovHlavicku(); obnovDetail();
+  clearTimeout(zmen.t); zmen.t = setTimeout(sync, 900);
+}
+
+/* ---------- synchronizácia ---------- */
+async function nacitajVsetko(){
+  const r = await api('nacitaj', C.pin);
+  SRV = {rola:r.rola, rev:r.rev, meta:r.meta, polozky:r.polozky, pocty:naMapu(r.pocty,'lineId'), udaje:naMapu(r.udaje,'itemId'), navyse:naMapu(r.navyse,'id'), kontroly:naMapu(r.kontroly,'key'),
+    vydPolia:r.vydPolia || [], vydRaw:r.vydajniky || [], nalezy:naMapu(r.nalezy || [],'lineId')};
+  REG_ZDROJ = null;
+  ulozCache(); online = true; poslednaSync = new Date();
+  obnovView(); nastavRolu(); vykresli(); obnovDetail();
+}
+let syncBezi = false, syncZnova = false;
+async function sync(){
+  if (!C.pin || !SRV) return;
+  if (syncBezi) { syncZnova = true; return; }
+  syncBezi = true; obnovSyncStav();
+  try {
+    if (OUT.length) {
+      const davka = OUT.slice(0, 100);
+      davka.forEach(o => { o.odosiela = true; });
+      try {
+        await api('zapis', C.pin, davka.map(o => { const c = Object.assign({}, o); delete c.odosiela; return c; }));
+        OUT.splice(0, davka.length);
+      } catch(e) { davka.forEach(o => { delete o.odosiela; }); throw e; }
+      ulozOut();
+      if (OUT.length) syncZnova = true;
+    }
+    const r = await api('zmeny', C.pin, SRV.rev, SRV.meta.verzia);
+    if (r.reload) { await nacitajVsetko(); toast('Zoznam majetku bol aktualizovaný'); }
+    else {
+      const bolo = (r.pocty || []).length + (r.udaje || []).length + (r.navyse || []).length + (r.kontroly || []).length + (r.nalezy || []).length;
+      SRV.nalezy = SRV.nalezy || {};
+      for (const x of r.nalezy || []) SRV.nalezy[x.lineId] = x;
+      for (const x of r.pocty || []) SRV.pocty[x.lineId] = x;
+      for (const x of r.udaje || []) SRV.udaje[x.itemId] = x;
+      for (const x of r.navyse || []) SRV.navyse[x.id] = x;
+      for (const x of r.kontroly || []) SRV.kontroly[x.key] = x;
+      SRV.rev = r.rev; ulozCache();
+      obnovView();
+      if (bolo) { vykresliTicho(); obnovDetail(); }
+    }
+    online = true; poslednaSync = new Date();
+  } catch(e) {
+    if (jeChybaKodu(e)) { odhlas(true); toast('Kód už neplatí – prihláste sa znova.', 4000); }
+    else online = false;
+  } finally {
+    syncBezi = false; obnovSyncStav();
+    if (syncZnova) { syncZnova = false; setTimeout(sync, 300); }
+  }
+}
+function obnovSyncStav(){
+  const b = $('#syncBtn'), t = $('#syncTxt');
+  b.classList.remove('cak','off');
+  if (online === false) { b.classList.add('off'); t.textContent = OUT.length ? `Offline · ${OUT.length} čaká` : 'Offline'; }
+  else if (OUT.length) { b.classList.add('cak'); t.textContent = `Odosiela ${OUT.length}`; }
+  else t.textContent = syncBezi && !poslednaSync ? 'Načítava…' : 'Uložené';
+  if (aktTab === 'data') vykresliSyncInfo();
+}
+setInterval(() => { if (document.visibilityState === 'visible') sync(); }, 15000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(); });
+window.addEventListener('online', () => sync());
+
+/* ---------- prihlásenie ---------- */
+function ukazLogin(){ $('#lMeno').value = C.kto || ''; $('#lPin').value = ''; $('#lErr').textContent = ''; $('#login').classList.add('on'); }
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const meno = $('#lMeno').value.trim(), pin = $('#lPin').value.trim();
+  if (!meno || !pin) return;
+  $('#lBtn').disabled = true; $('#lErr').textContent = '';
+  try {
+    await api('prihlas', pin);
+    if (SRV && C.pin !== pin) { SRV = null; ulozCache(); }
+    C.pin = pin; C.kto = meno; ulozConf();
+    await nacitajVsetko();
+    $('#login').classList.remove('on');
+    sync();
+  } catch(err) {
+    $('#lErr').textContent = /Failed|NetworkError|network/i.test(err.message) ? 'Nie je spojenie so serverom. Skúste to so signálom.' : err.message;
+  } finally { $('#lBtn').disabled = false; }
+});
+function odhlas(vynutene){
+  if (!vynutene && OUT.length && !confirm(`V mobile čaká ${OUT.length} neodoslaných zmien. Po odhlásení sa stratia. Odhlásiť aj tak?`)) return;
+  C.pin = ''; ulozConf();
+  // pri vynútenom odhlásení (zmenený kód) čakajúce zmeny ostanú a odošlú sa po novom prihlásení
+  if (!vynutene) { OUT = []; ulozOut(); }
+  else if (OUT.length) toast(`V mobile čaká ${OUT.length} neodoslaných zmien – po prihlásení sa odošlú.`, 5000);
+  SRV = null; ulozCache(); obnovView();
+  document.body.classList.remove('admin');
+  ukazLogin();
+}
+function nastavRolu(){
+  document.body.classList.toggle('admin', jeAdmin());
+  $('#fSlepaWrap').style.display = jeAdmin() ? 'flex' : 'none';
+}
+
+/* ---------- parsovanie Excelu (len správca) ---------- */
+function najdiHlavicku(riadky, povinne){
+  for (let i = 0; i < Math.min(riadky.length, 12); i++) {
+    const r = (riadky[i] || []).map(norm);
+    if (povinne.every(p => r.includes(norm(p)))) return {riadok:i, ix:n => r.indexOf(norm(n))};
+  }
+  return null;
+}
+function skupinaZasoby(kod, nazov){
+  const n = norm(nazov), k = norm(kod);
+  if (n.includes('vydajnik')) return 'Výdajníky – nové na sklade';
+  if (n.includes('co2') || n.includes('redukcny ventil')) return 'CO2 fľaše a ventily';
+  if (/^nd/.test(k) || /kohut|pumpa|narazac|narazaci trn/.test(n)) return 'Náhradné diely a príslušenstvo';
+  if (/paleta|prelozka|zakladac|stojan/.test(n)) return 'Palety, preložky, zakladače';
+  if (/barel|zalohovy obal|navlek/.test(n)) return 'Barely a zálohové obaly';
+  if (/pohar|tubus/.test(n)) return 'Poháriky a tubusy';
+  if (/uzaver|etiket/.test(n)) return 'Uzávery a etikety';
+  return 'Ostatné';
+}
+function skupinaMajetku(ucet, nazov){
+  const u = String(ucet || ''), n = norm(nazov);
+  if (n.includes('vydajnik')) return 'Výdajníky v majetku';
+  if (u === '022104') return 'Vozidlá';
+  if (u.startsWith('0227')) return 'Barelová linka';
+  return 'Ostatný majetok';
+}
+function parsuj(harky){
+  const out = []; const zas = {}; let majetokN = 0, zasobyN = 0; const harkyPouzite = [];
+  for (const [meno, riadky] of Object.entries(harky || {})) {
+    const m = najdiHlavicku(riadky, ['Inventárne číslo','Názov majetku','Množstvo']);
+    if (m) {
+      harkyPouzite.push(meno);
+      const ix = m.ix;
+      for (const r of riadky.slice(m.riadok + 1)) {
+        const inv = r[ix('Inventárne číslo')];
+        if (inv === null || inv === undefined || inv === '') continue;
+        const nazov = String(r[ix('Názov majetku')] ?? '').trim();
+        const ucet = String(r[ix('Účet majetku')] ?? '').trim();
+        const mn = num(r[ix('Množstvo')]) ?? 1;
+        const vc = num(r[ix('Vstupná cena')]) ?? 0;
+        const zcIx = ix('Účtovná ZC');
+        const zc = zcIx >= 0 ? (num(r[zcIx]) ?? vc) : vc;
+        const spz = (nazov.match(/\b([A-Z]{2}\s?\d{3}\s?[A-Z]{2})\b/) || [])[1] || '';
+        majetokN++;
+        out.push({id:'M-' + String(inv).trim(), typ:'majetok', kod:String(inv).trim(), nazov, ucet, mj:'ks',
+          skupina:skupinaMajetku(ucet, nazov), sklad:'Dlhodobý majetok', mn, vc, hodnota:zc, jc: mn ? zc / mn : 0,
+          zaradenie: r[ix('Dátum zaradenia')] || '', pracovnik: String(r[ix('Pracovník')] ?? '').trim(),
+          umiestnenie: String(r[ix('Názov umiestnenia')] ?? '').trim(), vyrCislo: String(r[ix('Výrobné číslo')] ?? '').trim(), spz, riadky:null});
+      }
+      continue;
+    }
+    const s = najdiHlavicku(riadky, ['Kód produktu','Názov produktu','Množstvo','Názov skladu']);
+    if (s) {
+      harkyPouzite.push(meno);
+      const ix = s.ix;
+      for (const r of riadky.slice(s.riadok + 1)) {
+        const kod = r[ix('Kód produktu')], nazov = String(r[ix('Názov produktu')] ?? '').trim();
+        if ((kod === null || kod === undefined || kod === '') && !nazov) continue;
+        const sklad = String(r[ix('Názov skladu')] ?? '').trim();
+        const mn = num(r[ix('Množstvo')]) ?? 0, hod = num(r[ix('Hodnota')]) ?? 0;
+        const id = 'Z-' + String(kod).trim() + '|' + sklad;
+        zasobyN++;
+        if (!zas[id]) zas[id] = {id, typ:'zasoba', kod:String(kod).trim(), nazov, mj:String(r[ix('Mj')] ?? 'ks').trim() || 'ks',
+          skupina:skupinaZasoby(kod, nazov), sklad, mn:0, hodnota:0, riadky:[]};
+        zas[id].mn += mn; zas[id].hodnota += hod; zas[id].riadky.push({mn, hod});
+      }
+    }
+  }
+  for (const z of Object.values(zas)) { z.jc = z.mn ? z.hodnota / z.mn : 0; out.push(z); }
+  return {polozky:out, majetokN, zasobyN, harkyPouzite};
+}
+
+/* ---------- stav položky ---------- */
+const jeVydMaj = p => p.skupina === 'Výdajníky v majetku';
+const pocty = id => (V && V.poItem[id]) || [];
+const udaj = id => (V && V.udaje[id]) || {vc:[], voz:{}, fotky:[]};
+function napocitane(p){
+  const rr = pocty(p.id), zak = jeVydMaj(p) ? num(udaj(p.id).zak) : null;
+  if (!rr.length && zak == null) return null;
+  return rr.reduce((s, r) => s + (num(r.mn) || 0), 0) + (zak || 0);
+}
+const poskodene = p => pocty(p.id).reduce((s, r) => s + (num(r.pok) || 0), 0);
+function stavPolozky(p){
+  const n = napocitane(p);
+  if (p.typ === 'navyse') return n == null ? {k:'nie', t:'Nespočítané', d:0} : {k:'navyse', t:'Navyše', d:n};
+  if (n == null) return {k:'nie', t:'Nespočítané', d:null};
+  if (p.mn == null) return {k:'spoc', t:'Spočítané', d:null};
+  const d = Math.round((n - p.mn) * 1000) / 1000;
+  if (d === 0) return {k:'ok', t:'Sedí', d};
+  return d < 0 ? {k:'manko', t:'Manko ' + fmtN(d), d} : {k:'prebytok', t:'Prebytok +' + fmtN(d), d};
+}
+function pillHtml(p){
+  const st = stavPolozky(p);
+  if (slepa() && !['nie','navyse'].includes(st.k)) return '<span class="pill p-spoc">Spočítané</span>';
+  return `<span class="pill p-${st.k}">${esc(st.t)}</span>`;
+}
+function vRozsahu(p, sklad){
+  sklad = sklad ?? C.filtre.sklad;
+  if (sklad === '__vse') return true;
+  if (sklad === '__luka') return p.typ !== 'zasoba' || /l[uú]ka/i.test(p.sklad) || /Sklad-Materi/i.test(p.sklad);
+  return p.sklad === sklad;
+}
+
+/* ---------- súpis ---------- */
+function vykresliFiltre(){
+  const sklady = {};
+  for (const p of POLOZKY) if (p.typ === 'zasoba') sklady[p.sklad] = (sklady[p.sklad] || 0) + 1;
+  const opts = [['__luka','Lúka – majetok + sklady v Lúke'],['__vse','Všetko (aj externé sklady)'],['Dlhodobý majetok','Len dlhodobý majetok']]
+    .concat(Object.entries(sklady).sort((a,b) => b[1] - a[1]).map(([k]) => [k, 'Sklad ' + k]));
+  if (!opts.some(o => o[0] === C.filtre.sklad)) C.filtre.sklad = '__luka';
+  $('#fSklad').innerHTML = opts.map(([v,t]) => `<option value="${esc(v)}"${v === C.filtre.sklad ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  $('#fSlepa').checked = !!C.filtre.slepa;
+  if (document.activeElement !== $('#fHladaj')) $('#fHladaj').value = C.filtre.hladaj || '';
+}
+function vyhovuje(p){
+  const f = C.filtre;
+  if (!vRozsahu(p)) return false;
+  if (f.skupina && p.skupina !== f.skupina) return false;
+  if (f.stav) {
+    const k = stavPolozky(p).k;
+    if (f.stav === 'nie' && k !== 'nie') return false;
+    if (f.stav === 'spoc' && k === 'nie') return false;
+    if (f.stav === 'rozdiel' && !['manko','prebytok','navyse'].includes(k)) return false;
+    if (f.stav === 'ok' && k !== 'ok') return false;
+    if (f.stav === 'moje' && !pocty(p.id).some(r => r.kto === C.kto)) return false;
+  }
+  if (f.hladaj) {
+    const q = norm(f.hladaj), u = udaj(p.id);
+    if (!norm([p.nazov, p.kod, p.sklad, p.spz, u.pozn, (u.vc || []).join(' '), pocty(p.id).map(r => r.lok).join(' ')].join(' ')).includes(q)) return false;
+  }
+  return true;
+}
+function vykresliSupis(){
+  const f = C.filtre;
+  if (!SRV) { $('#zoznam').innerHTML = ''; return; }
+  const rozsah = POLOZKY.filter(p => vRozsahu(p));
+  const poSkup = {};
+  for (const p of rozsah) { const g = poSkup[p.skupina] || (poSkup[p.skupina] = {n:0, s:0}); g.n++; if (stavPolozky(p).k !== 'nie') g.s++; }
+  const skup = SKUPINY.filter(s => poSkup[s]).concat(Object.keys(poSkup).filter(s => !SKUPINY.includes(s)));
+  if (f.skupina && !poSkup[f.skupina]) f.skupina = '';
+  $('#fSkupiny').innerHTML = `<button class="chip${!f.skupina ? ' on' : ''}" data-skup="" type="button">Všetky skupiny</button>` +
+    skup.map(s => `<button class="chip${f.skupina === s ? ' on' : ''}" data-skup="${esc(s)}" type="button">${esc(s)}<b>${poSkup[s].s}/${poSkup[s].n}</b></button>`).join('');
+  const stavy = slepa() ? [['','Všetko'],['nie','Nespočítané'],['spoc','Spočítané'],['moje','Moje']] : [['','Všetko'],['nie','Nespočítané'],['rozdiel','Rozdiely'],['ok','Sedí'],['moje','Moje']];
+  if (!stavy.some(s => s[0] === f.stav)) f.stav = '';
+  $('#fStav').innerHTML = stavy.map(([v,t]) => `<button class="chip${f.stav === v ? ' on' : ''}" data-stav="${v}" type="button">${t}</button>`).join('');
+
+  const vidno = POLOZKY.filter(vyhovuje);
+  if (!vidno.length) {
+    $('#zoznam').innerHTML = `<div class="empty-state">${POLOZKY.length ? 'Nič nevyhovuje filtru.' : jeAdmin() ? 'Zoznam majetku je prázdny – nahrajte Excel v Nastaveniach.' : 'Správca ešte nenahral zoznam majetku. Nájdené veci môžete pridávať aj tak.'}</div>`;
+    return;
+  }
+  let html = '';
+  for (const s of skup) {
+    const pol = vidno.filter(p => p.skupina === s).sort((a,b) => (b.hodnota - a.hodnota) || a.nazov.localeCompare(b.nazov, 'sk'));
+    if (!pol.length) continue;
+    const kk = jeAdmin() && KONTROLY[s] ? KONTROLY[s].filter((t,i) => (V.kontroly[s + '#' + i] || {}).ok).length + '/' + KONTROLY[s].length : '';
+    html += `<div class="group"><h2>${esc(s)}</h2><span>${poSkup[s].s} z ${poSkup[s].n} spočítaných${kk ? ' · doklady ' + kk : ''}</span></div><div class="list">`;
+    for (const p of pol) html += riadokHtml(p);
+    html += '</div>';
+  }
+  $('#zoznam').innerHTML = html;
+}
+function riadokHtml(p){
+  const u = udaj(p.id), rr = pocty(p.id), n = napocitane(p);
+  const lok = [...new Set(rr.map(r => r.lok).filter(Boolean))];
+  const sub = [p.typ === 'majetok' ? 'Inv. č. ' + p.kod : p.typ === 'zasoba' ? 'Kód ' + p.kod : 'Nájdené navyše',
+    C.filtre.sklad === '__vse' || C.filtre.sklad === '__luka' ? (p.typ === 'zasoba' ? p.sklad.replace(/^\d+-/, '') : '') : '',
+    lok.length ? '→ ' + lok.join(', ') : '', (u.vc || []).length ? (u.vc.length + ' výr. č.') : '', poskodene(p) ? poskodene(p) + ' poškodených' : '',
+    (u.fotky || []).length ? (u.fotky.length + ' foto') : ''].filter(Boolean).join(' · ');
+  const ocak = slepa() || p.typ === 'navyse' || p.mn == null ? '' : `<div class="e">z ${fmtN(p.mn)} ${esc(p.mj)}</div>`;
+  return `<button class="item" data-id="${esc(p.id)}" type="button"><div class="main"><div class="name">${esc(p.nazov)}</div><div class="sub">${esc(sub)}</div></div>
+    <div class="qty"><div class="n">${n == null ? '—' : fmtN(n)}</div>${ocak}<div>${pillHtml(p)}</div></div></button>`;
+}
+
+/* ---------- detail položky ---------- */
+let otvorene = null, poslLok = nacitajLS('inv-lucka-lok', '') || MIESTO_DEF;
+function otvorDetail(id){
+  const p = MAPA[id]; if (!p) return;
+  otvorene = id;
+  const u = udaj(id), sl = slepa();
+  const info = [];
+  if (p.typ === 'majetok') {
+    if (p.zaradenie) info.push(['Zaradené', fmtD(p.zaradenie)]);
+    if (vidiCeny()) { info.push(['Vstupná cena', fmtE(p.vc)]); info.push(['Zostatková cena', fmtE(p.hodnota)]); if (p.mn > 1) info.push(['Na kus (ZC)', fmtE(p.jc)]); }
+    if (p.pracovnik) info.push(['Pracovník', p.pracovnik]);
+    else if (p.skupina === 'Vozidlá' && p.umiestnenie) info.push(['Pridelené', p.umiestnenie]);
+    if (p.umiestnenie) info.push(['Umiestnenie v účtovníctve', p.umiestnenie]);
+    if (p.vyrCislo) info.push(['Výrobné číslo / pozn.', p.vyrCislo]);
+    if (p.ucet) info.push(['Účet', p.ucet]);
+  } else if (p.typ === 'zasoba') {
+    info.push(['Sklad', p.sklad]);
+    if (vidiCeny()) { info.push(['Hodnota', fmtE(p.hodnota)]); info.push(['Jednotková cena', fmtE(p.jc)]); }
+    if (vidiCeny() && p.riadky && p.riadky.length > 1) info.push(['V účtovníctve v ' + p.riadky.length + ' riadkoch', p.riadky.map(r => fmtN(r.mn)).join(' + ') + ' ' + p.mj]);
+  } else if (p.kto) info.push(['Pridal', p.kto]);
+  const jeden = p.jeden;
+  let html = `<div class="hd"><div><h2>${esc(p.nazov)}</h2><div class="sub">${esc(p.typ === 'majetok' ? 'Inv. č. ' + p.kod : p.typ === 'zasoba' ? 'Kód ' + p.kod : 'Nájdené navyše')} · ${esc(p.skupina)}</div></div><button class="x" data-zavriet type="button" aria-label="Zavrieť">×</button></div><div class="bd">`;
+  if (p.typ !== 'navyse') html += `<div class="expect"><span>Podľa účtovníctva</span><b>${sl || p.mn == null ? 'skryté (slepá inventúra)' : fmtN(p.mn) + ' ' + esc(p.mj)}</b></div>`;
+  html += `<div class="fld"><label>Napočítané – ${esc(p.mj)}</label><div class="pocty" id="dPocty"></div></div>`;
+  html += `<div class="novy">
+    <div class="fld"><label for="dMn">${jeden ? 'Je tento kus tu?' : 'Pridať napočítané množstvo'}</label>
+    ${jeden ? `<div class="grid2"><button class="btn pri" type="button" data-kus="1">Je tu</button><button class="btn" type="button" data-kus="0">Chýba</button></div>` :
+      `<div class="stepper"><button type="button" data-krok="-1">−</button><input type="number" inputmode="decimal" id="dMn" placeholder="0"><button type="button" data-krok="1">+</button></div>
+      <div class="quick"><button class="btn small" type="button" data-krok="10">+10</button><button class="btn small" type="button" data-krok="100">+100</button><button class="btn small" type="button" data-krok="1000">+1000</button></div>`}</div>
+    <div class="grid2"><div class="fld"><label for="dLok">Kde to je</label><input type="text" id="dLok" list="lokacie" value="${esc(poslLok)}" placeholder="sklad, hala, regál…"></div>
+    <div class="fld"><label for="dPok">Z toho poškodené</label><input type="number" inputmode="numeric" id="dPok" placeholder="0"></div></div>
+    ${jeden ? '' : '<button class="btn pri" type="button" data-zapisat>Zapísať počet</button>'}
+    <div class="note">${jeden ? 'Ťuknutím sa zapíše 1 alebo 0 ks.' : 'Ak je tá istá vec na viacerých miestach, zapíšte každé miesto zvlášť – spočíta sa to.'} Zapisuje sa pod menom ${esc(C.kto || '—')}.</div></div>`;
+  if (jeVydMaj(p)) html += `<div class="fld"><label for="dZak">U zákazníkov – podľa databázy výdajníkov</label><input type="number" inputmode="numeric" id="dZak" value="${u.zak ?? ''}" placeholder="—">
+    <div class="note">Výdajníky z majetku sú väčšinou v nájme u zákazníkov. Kus u zákazníka sa ráta do súčtu, ak je v databáze s výrobným číslom.</div></div>`;
+  if (p.skupina === 'Vozidlá') {
+    const v = u.voz || {};
+    html += `<div class="card" style="margin:0"><h3>Vozidlo${p.spz ? ' ' + esc(p.spz) : ''}</h3><div class="grid2">
+      <div class="fld"><label for="vKm">Stav tachometra (km)</label><input type="number" inputmode="numeric" id="vKm" data-voz="km" value="${esc(v.km ?? '')}"></div>
+      <div class="fld"><label for="vKl">Počet kľúčov</label><input type="number" inputmode="numeric" id="vKl" data-voz="kluce" value="${esc(v.kluce ?? '')}"></div>
+      <div class="fld"><label for="vStk">STK / EK platná do</label><input type="date" id="vStk" data-voz="stk" value="${esc(v.stk ?? '')}"></div>
+      <div class="fld"><label for="vPal">Palivo (stav)</label><input type="text" id="vPal" data-voz="palivo" value="${esc(v.palivo ?? '')}" placeholder="napr. 1/2"></div></div>
+      <label class="toggle" style="margin-top:10px"><input type="checkbox" data-voz="oev"${v.oev ? ' checked' : ''}> Osvedčenie o evidencii (veľký aj malý TP)</label>
+      <label class="toggle" style="margin-top:6px"><input type="checkbox" data-voz="znamka"${v.znamka ? ' checked' : ''}> Diaľničná známka / zelená karta</label>
+      <div class="fld" style="margin-top:10px"><label for="vPos">Poškodenia, výbava</label><textarea id="vPos" data-voz="poskodenia">${esc(v.poskodenia ?? '')}</textarea></div></div>`;
+  }
+  if (SO_SERIOVYMI.has(p.skupina) || p.typ === 'navyse') {
+    const skenOk = 'BarcodeDetector' in window;
+    html += `<div class="fld"><label for="dVc">Výrobné čísla${p.skupina === 'Vozidlá' ? ' / VIN' : ''}</label>
+      <div class="row"><input type="text" id="dVc" placeholder="napísať a Enter" style="flex:1 1 160px" autocapitalize="characters"><button class="btn small" type="button" data-vc-pridat>Pridať</button>${skenOk ? '<button class="btn small" type="button" data-sken>Skenovať</button><button class="btn small" type="button" data-sken-foto>Odfotiť kód</button>' : ''}</div>
+      <div class="serials" id="dVcList"></div>
+      <div class="note" id="dVcNote"></div></div>`;
+  }
+  html += `<div class="fld"><label>Fotky</label><div class="row"><button class="btn small" type="button" data-foto>Odfotiť</button><span class="note" id="dFotkyStav"></span></div><div class="serials" id="dFotky"></div></div>`;
+  html += `<div class="fld"><label for="dPozn">Poznámka</label><textarea id="dPozn" placeholder="stav, chýbajúce časti, kde to bolo…">${esc(u.pozn || '')}</textarea></div>`;
+  if (info.length) html += `<dl class="dl small">${info.map(([a,b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join('')}</dl>`;
+  html += `<div class="note" id="dMeta"></div></div><div class="ft">${p.typ === 'navyse' ? '<button class="btn danger small" type="button" data-zmazat-navyse>Odstrániť vec</button>' : '<span></span>'}<span id="dStav"></span><button class="btn pri" type="button" data-zavriet>Hotovo</button></div>`;
+  $('#sheet').innerHTML = html;
+  $('#modal').classList.add('on');
+  obnovDetail();
+}
+/** Obnoví v otvorenom detaile len časti, ktoré menia iní – rozpísané polia nechá tak. */
+function obnovDetail(){
+  if (!otvorene || !$('#modal').classList.contains('on')) return;
+  const p = MAPA[otvorene]; if (!p) { zavriDetail(); return; }
+  const rr = pocty(otvorene), u = udaj(otvorene), cakaju = new Set(OUT.filter(o => o.t === 'pocet').map(o => o.lineId));
+  const el = $('#dPocty');
+  if (el) el.innerHTML = rr.length ? rr.map(r => `<div class="pocet${cakaju.has(r.lineId) ? ' cak' : ''}"><span class="n">${fmtN(r.mn)}</span><div class="t">${esc(r.lok || 'bez miesta')}${num(r.pok) ? ' · poškodené ' + fmtN(r.pok) : ''}<div>${esc(r.kto || 'bez mena')}, ${esc(fmtCas(r.cas))}${cakaju.has(r.lineId) ? ' · čaká na odoslanie' : ''}</div></div><button type="button" data-pocet-zmaz="${esc(r.lineId)}" aria-label="Zmazať tento počet">×</button></div>`).join('') +
+    (rr.length > 1 ? `<div class="note">Spolu ${fmtN(rr.reduce((s, r) => s + (num(r.mn) || 0), 0))} ${esc(p.mj)}</div>` : '')
+    : '<div class="note">Zatiaľ nič.</div>';
+  const vl = $('#dVcList');
+  if (vl) {
+    vl.innerHTML = (u.vc || []).map(s => `<span class="serial">${esc(s)}<button type="button" data-vc-zmaz="${esc(s)}" aria-label="Odstrániť">×</button></span>`).join('');
+    const n = napocitane(p), nv = (u.vc || []).length;
+    $('#dVcNote').textContent = nv ? `Zapísaných výrobných čísel: ${nv}${n != null ? ' · napočítaných kusov: ' + fmtN(n) : ''}` : ('BarcodeDetector' in window ? 'Skenovanie číta čiarové aj QR kódy zo štítkov. Ak sa kamera nespustí, použite Odfotiť kód.' : '');
+  }
+  const fl = $('#dFotky');
+  if (fl) fl.innerHTML = (u.fotky || []).map((f, i) => `<span class="serial" style="font-family:inherit"><button type="button" data-foto-ukaz="${esc(f)}" style="width:auto;padding:0 8px;background:none">Fotka ${i + 1}</button><button type="button" data-foto-zmaz="${esc(f)}" aria-label="Odobrať fotku">×</button></span>`).join('');
+  const st = $('#dStav'); if (st) st.innerHTML = pillHtml(p);
+  const m = $('#dMeta'); if (m) { const posl = rr.concat(u.cas ? [u] : []).sort((a, b) => String(b.cas).localeCompare(String(a.cas)))[0]; m.textContent = posl ? `Naposledy: ${posl.kto || 'bez mena'}, ${fmtCas(posl.cas)}` : ''; }
+}
+function zavriDetail(){ $('#modal').classList.remove('on'); otvorene = null; vykresli(); }
+function zapisPocet(mn){
+  if (mn == null) { toast('Zadajte počet'); return false; }
+  const lok = ($('#dLok') || {}).value?.trim() || '', pok = num(($('#dPok') || {}).value);
+  poslLok = lok; ulozLS('inv-lucka-lok', lok);
+  zmen({t:'pocet', lineId:noveId('L'), itemId:otvorene, mn, pok, lok});
+  const i = $('#dMn'); if (i) i.value = '';
+  const pk = $('#dPok'); if (pk) pk.value = '';
+  if (navigator.vibrate) navigator.vibrate(40);
+  return true;
+}
+/* QR štítok VODAXu = "2018100240  230/19" (VČ + evidenčné č. poradové/rok) → "2018100240 (230/19)" */
+function upravVc(t){
+  t = String(t || '').trim().replace(/\s+/g, ' ');
+  const m = t.match(/^(\d{6,})\s(\d{1,5}\/\d{2,4})$/);
+  return m ? m[1] + ' (' + m[2] + ')' : t;
+}
+const kodVyrobku = f => /^(ean_13|ean_8|upc_a|upc_e)$/.test(f || '');   // EAN je na každom kuse modelu rovnaký
+const jadroVc = v => String(v).replace(/\s*\(.*\)$/, '');
+/* výrobný štítok má "020X67ZS2018100240", QR len "2018100240" – je to ten istý kus */
+const tenIstyKus = (a, b) => { a = jadroVc(a); b = jadroVc(b); return a === b || (Math.min(a.length, b.length) >= 8 && (a.endsWith(b) || b.endsWith(a))); };
+function pridajVc(hodnota){
+  hodnota = upravVc(hodnota); if (!hodnota || !otvorene) return false;
+  if ((udaj(otvorene).vc || []).some(v => tenIstyKus(v, hodnota))) { toast('Toto číslo už je zapísané'); return false; }
+  const inde = Object.values(V.udaje).find(u => u.itemId !== otvorene && (u.vc || []).some(v => tenIstyKus(v, hodnota)));
+  if (inde && MAPA[inde.itemId]) toast('Pozor: rovnaké číslo je aj pri „' + MAPA[inde.itemId].nazov + '“', 3500);
+  zmen({t:'udaj', itemId:otvorene, vcAdd:[hodnota]});
+  return true;
+}
+
+/* ---------- skenovanie a fotky ---------- */
+/** Fotka zo súboru ako obrázok na kreslenie – createImageBitmap nie je na iOS starších ako 15. */
+function obrazok(subor){
+  if (window.createImageBitmap) return createImageBitmap(subor);
+  return new Promise((ok, ko) => { const i = new Image(), u = URL.createObjectURL(subor); i.onload = () => { URL.revokeObjectURL(u); ok(i); }; i.onerror = () => ko(new Error('Fotka sa nedá otvoriť.')); i.src = u; });
+}
+let skenStream = null, skenBezi = false, skenCiel = null;
+/** Živá kamera ide len mimo rámčeka Google (lokálny test) alebo tam, kde ju rámček výslovne povolí. Inak sa skenuje fotkou. */
+const ZIVA_KAMERA = (() => {
+  try { if (window.top === window.self) return true; } catch(e) {}
+  try { return !!(document.featurePolicy && document.featurePolicy.allowsFeature('camera')); } catch(e) { return false; }
+})();
+/** BarcodeDetector (Chrome Android), inak jsQR – ten číta len QR, ale funguje aj na iPhone. */
+async function detektor(max){
+  if ('BarcodeDetector' in window) {
+    try { const f = await BarcodeDetector.getSupportedFormats(); if (f && f.length) { const d = new BarcodeDetector({formats:f}); return {detect: src => d.detect(src)}; } } catch(e) {}
+  }
+  if (window.jsQR) return {detect: async src => {
+    const c = detektor.c || (detektor.c = document.createElement('canvas'));
+    const w = src.videoWidth || src.width, h = src.videoHeight || src.height; if (!w) return [];
+    const k = Math.min(1, (max || 1000) / Math.max(w, h)); c.width = Math.round(w * k); c.height = Math.round(h * k);
+    const x = c.getContext('2d', {willReadFrequently:true}); x.drawImage(src, 0, 0, c.width, c.height);
+    const r = jsQR(x.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+    return r ? [{rawValue:r.data, format:'qr_code'}] : [];
+  }};
+  throw new Error('Tento prehliadač nevie čítať kódy – napíšte číslo ručne.');
+}
+async function spustiSken(ciel){
+  skenCiel = typeof ciel === 'function' ? ciel : null;
+  $('#scan').classList.toggle('foto-rezim', !ZIVA_KAMERA);
+  if (!ZIVA_KAMERA) {
+    // fotoaparát sa musí otvoriť hneď v rámci ťuknutia
+    $('#scanMsg').textContent = ''; $('#scanFotoBtn').textContent = 'Odfotiť kód';
+    $('#scan').classList.add('on'); skenBezi = true;
+    fotkaCiel = null; $('#skenVstup').value = ''; $('#skenVstup').click(); return;
+  }
+  try {
+    const det = await detektor();
+    skenStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const v = $('#scanVideo'); v.srcObject = skenStream; await v.play();
+    $('#scan').classList.add('on'); skenBezi = true;
+    let posledne = '', kedy = 0;
+    const krok = async () => {
+      if (!skenBezi) return;
+      try {
+        for (const k of await det.detect(v)) {
+          const t = upravVc(k.rawValue);
+          if (t && (t !== posledne || Date.now() - kedy > 3000)) {
+            posledne = t; kedy = Date.now();
+            if (kodVyrobku(k.format)) { $('#scanMsg').textContent = 'EAN výrobku preskočený – namierte na QR alebo „serial no“'; continue; }
+            if (skenCiel) { $('#scanMsg').textContent = skenCiel(k.rawValue); continue; }
+            if (pridajVc(t)) { $('#scanMsg').textContent = 'Pridané: ' + t + ' (spolu ' + (udaj(otvorene).vc || []).length + ')'; if (navigator.vibrate) navigator.vibrate(80); }
+          }
+        }
+      } catch(e) {}
+      setTimeout(krok, 250);
+    };
+    krok();
+  } catch(e) { zastavSken(); toast('Kamera sa nespustila – použite „Odfotiť kód“.', 3500); }
+}
+function zastavSken(){ skenBezi = false; if (skenStream) skenStream.getTracks().forEach(t => t.stop()); skenStream = null; $('#scan').classList.remove('on', 'foto-rezim'); if (aktTab === 'vyd') vykresliVyd(); }
+async function kodZFotky(subor){
+  const vOkne = skenBezi && !skenStream;   // režim fotky v okne skenera
+  if (vOkne) $('#scanMsg').textContent = 'Čítam kód z fotky…';
+  try {
+    const det = await detektor(1600);
+    const vsetky = await det.detect(await obrazok(subor));
+    const kody = vsetky.filter(k => !kodVyrobku(k.format));
+    if (vOkne) {
+      if (!kody.length) { $('#scanMsg').textContent = vsetky.length ? 'Na fotke je len EAN výrobku – odfoťte QR alebo „serial no“.' : 'Na fotke som nenašiel kód – odfoťte ho bližšie a ostrejšie.'; return; }
+      kody.sort((a, b) => (b.format === 'qr_code') - (a.format === 'qr_code'));
+      if (skenCiel) $('#scanMsg').textContent = skenCiel(kody[0].rawValue);
+      else { const t = upravVc(kody[0].rawValue); $('#scanMsg').textContent = pridajVc(t) ? 'Pridané: ' + t + ' (spolu ' + (udaj(otvorene).vc || []).length + ')' : t + ' – už je zapísané'; }
+      $('#scanFotoBtn').textContent = 'Odfotiť ďalší kód';
+      return;
+    }
+    if (!kody.length) { toast(vsetky.length ? 'Na fotke je len EAN výrobku – odfoťte QR alebo „serial no“.' : 'Na fotke som nenašiel kód – skúste bližšie a ostrejšie.', 3000); return; }
+    // QR aj výrobný štítok na jednej fotke = jeden kus; QR ide prvý, lebo nesie aj evidenčné číslo
+    kody.sort((a, b) => (b.format === 'qr_code') - (a.format === 'qr_code'));
+    if (fotkaCiel) { const f = fotkaCiel; fotkaCiel = null; toast(f(kody[0].rawValue), 4000); return; }
+    const pridane = kody.map(k => upravVc(k.rawValue)).filter(t => pridajVc(t));
+    if (pridane.length) toast('Pridané: ' + pridane.join(', '));
+  } catch(e) { toast('Kód sa nedá prečítať: ' + e.message); }
+}
+let fotkaCiel = null;
+async function zmensi(subor, max){
+  const img = await obrazok(subor);
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.75).split(',')[1];
+}
+async function nahrajFotku(subor){
+  const id = otvorene; if (!id) return;
+  const st = $('#dFotkyStav'); if (st) st.textContent = 'Nahrávam…';
+  try {
+    const b64 = await zmensi(subor, 1600);
+    await api('foto', C.pin, id, b64, C.kto || '');
+    if (st) st.textContent = '';
+    toast('Fotka uložená'); sync();
+  } catch(e) { if (st) st.textContent = ''; toast(/Failed|Network/i.test(e.message) ? 'Fotka sa dá nahrať len so signálom.' : 'Fotka sa neuložila: ' + e.message, 3500); }
+}
+const fotkyCache = {};
+async function ukazFotku(id){
+  try {
+    toast('Načítavam fotku…');
+    const src = fotkyCache[id] || (fotkyCache[id] = await api('fotoData', C.pin, id));
+    $('#fotoImg').src = src; $('#foto').classList.add('on');
+  } catch(e) { delete fotkyCache[id]; toast('Fotka sa nenačítala: ' + e.message); }
+}
+
+/* ---------- pridanie nájdenej veci ---------- */
+function otvorPridanie(){
+  otvorene = null;
+  $('#sheet').innerHTML = `<div class="hd"><div><h2>Nájdená vec navyše</h2><div class="sub">Fyzicky je, ale v zozname od VODAXu nie je</div></div><button class="x" data-zavriet type="button">×</button></div>
+  <div class="bd"><div class="fld"><label for="nNazov">Názov</label><input type="text" id="nNazov" placeholder="napr. Výdajník HC 66L biely"></div>
+  <div class="fld"><label for="nSkup">Skupina</label><select id="nSkup">${SKUPINY.map(s => `<option${s === (C.filtre.skupina || 'Ostatné') ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
+  <div class="grid2"><div class="fld"><label for="nMn">Množstvo</label><input type="number" inputmode="decimal" id="nMn" value="1"></div><div class="fld"><label for="nMj">Jednotka</label><input type="text" id="nMj" value="ks"></div></div>
+  <div class="fld"><label for="nLok">Kde to je</label><input type="text" id="nLok" list="lokacie" value="${esc(poslLok)}"></div>
+  <div class="fld"><label for="nPozn">Poznámka</label><textarea id="nPozn"></textarea></div></div>
+  <div class="ft"><span></span><button class="btn pri" type="button" id="nUloz">Pridať</button></div>`;
+  $('#modal').classList.add('on');
+  setTimeout(() => $('#nNazov').focus(), 50);
+}
+function ulozPridanie(){
+  const nazov = $('#nNazov').value.trim(); if (!nazov) { toast('Doplňte názov'); return; }
+  const id = noveId('X-');
+  zmen({t:'navyse', id, nazov, skupina:$('#nSkup').value, mj:$('#nMj').value.trim() || 'ks'});
+  const mn = num($('#nMn').value);
+  if (mn != null) zmen({t:'pocet', lineId:noveId('L'), itemId:id, mn, pok:null, lok:$('#nLok').value.trim()});
+  const pozn = $('#nPozn').value.trim();
+  if (pozn) zmen({t:'udaj', itemId:id, patch:{pozn}});
+  toast('Pridané');
+  zavriDetail();
+}
+
+/* ---------- prehľad ---------- */
+function suhrn(){
+  const rozsah = POLOZKY.filter(p => vRozsahu(p));
+  const sk = {}; let spoc = 0, hod = 0, manko = 0, prebytok = 0;
+  for (const p of rozsah) {
+    const st = stavPolozky(p), g = sk[p.skupina] || (sk[p.skupina] = {n:0, s:0, hod:0, rozd:0, mn:0, nap:0});
+    g.n++; g.hod += p.hodnota || 0; hod += p.hodnota || 0; g.mn += p.mn || 0;
+    if (st.k !== 'nie') { g.s++; spoc++; g.nap += napocitane(p) || 0; }
+    if (st.d && p.typ !== 'navyse') { const e = st.d * (p.jc || 0); g.rozd += e; if (e < 0) manko += e; else prebytok += e; }
+  }
+  return {rozsah, sk, spoc, hod, manko, prebytok};
+}
+function rozsahNazov(){ const o = $('#fSklad').selectedOptions[0]; return o ? o.textContent : ''; }
+function vykresliPrehlad(){
+  if (!SRV) return;
+  const s = suhrn(), ceny = vidiCeny();
+  $('#rozsahTxt').textContent = 'Rozsah: ' + rozsahNazov() + ' (mení sa výberom skladu v Súpise)';
+  $('#kpis').innerHTML = `<div class="kpi"><div class="l">Spočítané položky</div><div class="v">${s.spoc} / ${s.rozsah.length}</div></div>` + (ceny ?
+    `<div class="kpi"><div class="l">Účtovná hodnota</div><div class="v">${fmtE(s.hod)}</div></div>
+    <div class="kpi"><div class="l">Manko (v €)</div><div class="v bad">${fmtE(s.manko)}</div></div>
+    <div class="kpi"><div class="l">Prebytok (v €)</div><div class="v warn">${fmtE(s.prebytok)}</div></div>` :
+    `<div class="kpi"><div class="l">Zapísaných počtov</div><div class="v">${Object.values(V.pocty).filter(r => !r.zmazane).length}</div></div>`);
+  const skup = SKUPINY.filter(x => s.sk[x]).concat(Object.keys(s.sk).filter(x => !SKUPINY.includes(x)));
+  $('#tabSkupiny').innerHTML = `<table><thead><tr><th>Skupina</th><th class="r">Spočítané</th>${ceny ? '<th class="r">Účt. hodnota</th><th class="r">Rozdiel</th>' : ''}</tr></thead><tbody>` +
+    skup.map(x => { const g = s.sk[x]; return `<tr><td>${esc(x)}</td><td class="r">${g.s}/${g.n}</td>${ceny ? `<td class="r">${fmtE(g.hod)}</td><td class="r">${g.rozd ? fmtE(g.rozd) : '–'}</td>` : ''}</tr>`; }).join('') + '</tbody></table>';
+  const ludia = {};
+  for (const r of Object.values(V.pocty)) if (!r.zmazane) { const l = ludia[r.kto || 'bez mena'] || (ludia[r.kto || 'bez mena'] = {n:0, pol:new Set(), posl:''}); l.n++; l.pol.add(r.itemId); if (String(r.cas) > l.posl) l.posl = r.cas; }
+  const lz = Object.entries(ludia).sort((a, b) => b[1].n - a[1].n);
+  $('#tabLudia').innerHTML = lz.length ? `<table><thead><tr><th>Kto</th><th class="r">Zápisov</th><th class="r">Položiek</th><th class="r">Naposledy</th></tr></thead><tbody>` +
+    lz.map(([k, l]) => `<tr><td>${esc(k)}</td><td class="r">${l.n}</td><td class="r">${l.pol.size}</td><td class="r">${esc(fmtCas(l.posl))}</td></tr>`).join('') + '</tbody></table>' : '<p class="muted small">Zatiaľ nikto nič nezapísal.</p>';
+  vykresliVydPrehlad();
+  if (!jeAdmin()) return;
+  vykresliBarely();
+  const rozd = s.rozsah.map(p => ({p, st:stavPolozky(p)})).filter(x => x.st.d && x.st.k !== 'nie').sort((a,b) => Math.abs(b.st.d * (b.p.jc || 0)) - Math.abs(a.st.d * (a.p.jc || 0)));
+  $('#tabRozdiely').innerHTML = slepa() ? '<p class="muted small">Pri slepej inventúre sa rozdiely nezobrazujú.</p>' : !rozd.length ? '<p class="muted small">Zatiaľ žiadne rozdiely.</p>' :
+    `<table><thead><tr><th>Položka</th><th class="r">Účt.</th><th class="r">Napočítané</th><th class="r">Rozdiel</th><th class="r">€</th></tr></thead><tbody>` +
+    rozd.map(({p, st}) => `<tr data-id="${esc(p.id)}" style="cursor:pointer"><td>${esc(p.nazov)}<div class="muted small">${esc(p.typ === 'zasoba' ? p.sklad : p.typ === 'majetok' ? 'Inv. č. ' + p.kod : 'navyše')}</div></td><td class="r">${p.typ === 'navyse' ? '–' : fmtN(p.mn)}</td><td class="r">${fmtN(napocitane(p))}</td><td class="r">${st.d > 0 ? '+' : ''}${fmtN(st.d)}</td><td class="r">${p.jc ? fmtE(st.d * p.jc) : '–'}</td></tr>`).join('') + '</tbody></table>';
+  let k = '';
+  for (const [skupina, body] of Object.entries(KONTROLY)) {
+    k += `<div class="small" style="font-weight:650;margin:10px 0 2px">${esc(skupina)}</div>`;
+    body.forEach((t, i) => { const key = skupina + '#' + i, z = V.kontroly[key] || {};
+      k += `<div class="checkrow"><input type="checkbox" data-kontrola="${esc(key)}"${z.ok ? ' checked' : ''} id="k${esc(key)}"><div class="t"><label for="k${esc(key)}">${esc(t)}</label>${z.cas ? `<div class="meta">${esc(z.kto || 'bez mena')}, ${fmtCas(z.cas)}</div>` : ''}</div></div>`; });
+  }
+  $('#kontroly').innerHTML = k;
+}
+
+/* Barely podľa rokov nákupu – „Prehľad Barelov pre Budiš.xlsx“ od VODAXu (J. Novák, opravená verzia 22. 10. 2026).
+   Ocenenie = návrh M. Horeckého 18. 10.: životnosť 4 roky, nákupy 2021–2022 nulová hodnota, 2023 ¼ … 2026 plná cena.
+   Postup ešte potvrdí audítor / daňový poradca. PET sú len barely z nákupu 9/2026, ostatné polykarbonát. */
+const BARELY_NAKUP = [
+  {rok:2021, ks:1079, eur:5705.04, podiel:0},
+  {rok:2022, ks:5264, eur:31167.26, podiel:0},
+  {rok:2023, ks:2748, eur:16513.80, podiel:0.25},
+  {rok:2024, ks:2718, eur:16345.65, podiel:0.5},
+  {rok:2025, ks:1080, eur:6330.06, podiel:0.75},
+  {rok:2026, ks:17640, eur:103128.73, podiel:1, pet:13000}];
+const BARELY_VYRADENE = 5607, BARELY_VYRADENE_SUBOR = 5075;   // súčet riadkov vs. súčet uvedený v súbore
+const jeBarel189 = p => p.skupina === 'Barely a zálohové obaly' && /18,9/.test(p.nazov) && !/ochrann|n[áa]vlek/i.test(p.nazov);
+function vykresliBarely(){
+  const el = $('#tabBarely'); if (!el) return;
+  const ks = BARELY_NAKUP.reduce((a, r) => a + r.ks, 0), eur = BARELY_NAKUP.reduce((a, r) => a + r.eur, 0);
+  const hod = BARELY_NAKUP.reduce((a, r) => a + r.eur * r.podiel, 0), pet = BARELY_NAKUP.reduce((a, r) => a + (r.pet || 0), 0);
+  const ucet = POLOZKY.filter(jeBarel189), ucetKs = ucet.reduce((a, p) => a + (p.mn || 0), 0);
+  const nap = ucet.map(napocitane).filter(n => n != null), napKs = nap.reduce((a, n) => a + n, 0);
+  el.innerHTML = `<table><thead><tr><th>Rok nákupu</th><th class="r">Kusov</th><th class="r">Nákup €</th><th class="r">Ocenenie</th><th class="r">Hodnota €</th></tr></thead><tbody>` +
+    BARELY_NAKUP.map(r => `<tr><td>${r.rok}${r.pet ? ' <span class="muted small">(z toho ' + fmtN(r.pet) + ' PET 9/2026)</span>' : ''}</td><td class="r">${fmtN(r.ks)}</td><td class="r">${fmtE(r.eur)}</td><td class="r">${r.podiel * 100} %</td><td class="r">${fmtE(r.eur * r.podiel)}</td></tr>`).join('') +
+    `<tr><td><b>Spolu 2021–2026</b></td><td class="r"><b>${fmtN(ks)}</b></td><td class="r">${fmtE(eur)}</td><td></td><td class="r"><b>${fmtE(hod)}</b></td></tr>
+    <tr><td>Vyradené 2021–2026</td><td class="r">−${fmtN(BARELY_VYRADENE)}</td><td colspan="3" class="muted small">súčet riadkov; v súčte súboru je ${fmtN(BARELY_VYRADENE_SUBOR)}</td></tr>
+    <tr><td><b>Očakávané v obehu</b> (nákupy − vyradené)</td><td class="r"><b>${fmtN(ks - BARELY_VYRADENE)}</b></td><td colspan="3" class="muted small">PET ${fmtN(pet)}, polykarbonát ${fmtN(ks - BARELY_VYRADENE - pet)}; staršie ako 2021 = nulová hodnota</td></tr>
+    <tr><td>Účtovne na skladoch (zoznam HK 2025)</td><td class="r">${fmtN(ucetKs)}</td><td colspan="3" class="muted small">${ucet.length} položiek barelov 18,9 l po skladoch</td></tr>
+    <tr><td>Napočítané v inventúre</td><td class="r">${nap.length ? fmtN(napKs) : '–'}</td><td colspan="3" class="muted small">${nap.length ? nap.length + ' z ' + ucet.length + ' položiek spočítaných' : 'zatiaľ nič'}</td></tr></tbody></table>`;
+  $('#barelyPozn').textContent = 'Zdroj: prehľad nákupov a vyradení od VODAXu (opravená verzia 22. 10. 2026, doplnený nákup 1 200 ks Temaqua 9/2026). ' +
+    'Ocenenie podľa návrhu M. Horeckého z 18. 10. (4 roky životnosť) – s opravenou verziou vychádza ' + fmtE(hod) + ', pôvodný odhad ~113 tis. € bol bez riadku Temaqua. ' +
+    'Barely u zákazníkov (obalové kontá a zálohy) pošle VODAX k 31. 10.';
+}
+
+/* ---------- nastavenia ---------- */
+function vykresliSyncInfo(){
+  $('#syncInfo').innerHTML = `<dt>Spojenie</dt><dd>${online === false ? 'bez spojenia' : online ? 'v poriadku' : '…'}</dd>
+    <dt>Čaká na odoslanie</dt><dd>${OUT.length} ${OUT.length === 1 ? 'zmena' : OUT.length >= 2 && OUT.length <= 4 ? 'zmeny' : 'zmien'}</dd>
+    <dt>Naposledy</dt><dd>${poslednaSync ? poslednaSync.toLocaleTimeString('sk-SK') : '—'}</dd>`;
+}
+function vykresliData(){
+  if (document.activeElement !== $('#ktoInput')) $('#ktoInput').value = C.kto || '';
+  $('#rolaInfo').textContent = SRV ? (jeAdmin() ? 'Prihlásený ako správca – vidíte ceny, rozdiely a výstupy.' : 'Prihlásený ako skladník.') + ' Meno sa zapisuje ku každému počtu.' : '';
+  vykresliSyncInfo();
+  if (!jeAdmin()) return;
+  const m = SRV.meta, nMaj = POLOZKY.filter(p => p.typ === 'majetok').length, nZas = POLOZKY.filter(p => p.typ === 'zasoba').length;
+  $('#verziaInfo').innerHTML = m.subor ? `<dt>Súbor</dt><dd>${esc(m.subor)}</dd><dt>Nahraté</dt><dd>${esc(m.nahrate)}</dd><dt>Položky</dt><dd>${nMaj} kariet majetku, ${nZas} skladových položiek</dd>` : '<dt>Zoznam</dt><dd>zatiaľ nenahratý</dd>';
+  if (document.activeElement !== $('#stavKInput')) $('#stavKInput').value = m.stavK || '';
+  const regN = Object.keys(REG).length;
+  $('#vydRegInfo').innerHTML = regN ? `<dt>Súbor</dt><dd>${esc(m.vydSubor || '')}</dd><dt>Nahraté</dt><dd>${esc(m.vydNahrate || '')}</dd><dt>Výdajníkov</dt><dd>${regN}</dd>
+    <dt>Naskenovaných</dt><dd>${Object.keys(V.naVc).length}</dd>` : '<dt>Register</dt><dd>zatiaľ nenahratý</dd>';
+  $('#slepaSklad').checked = !!m.slepaSklad;
+  $('#pozvanka').innerHTML = `<dt>Odkaz</dt><dd>${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.url)}</a>` : 'aplikácia ešte nie je nasadená'}</dd><dt>Kód skladníka</dt><dd class="pin">${esc(m.pinSklad || '')}</dd>
+    ${m.tabulka ? `<dt>Databáza</dt><dd><a href="${esc(m.tabulka)}" target="_blank" rel="noopener">Google tabuľka</a></dd>` : ''}`;
+  const qr = $('#qr');
+  if (m.url && window.QRCode && qr.dataset.url !== m.url) { qr.innerHTML = ''; new QRCode(qr, {text:m.url, width:180, height:180}); qr.dataset.url = m.url; }
+  qr.hidden = !(m.url && window.QRCode);
+}
+function citajExcel(subor){
+  if (typeof XLSX === 'undefined') { toast('Knižnica na čítanie Excelu sa nenačítala – treba internet.'); return; }
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+      const harky = {};
+      for (const n of wb.SheetNames) {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:null});
+        harky[n] = rows.map(row => row.map(c => c instanceof Date ? new Date(c.getTime() - c.getTimezoneOffset() * 60000).toISOString().slice(0,10) : c))
+          .filter(row => row.some(c => c !== null && c !== ''));
+      }
+      const p = parsuj(harky);
+      if (!p.polozky.length) { toast('V súbore som nenašiel hárok s majetkom ani so skladmi.'); return; }
+      ukazRozdiel(subor.name, p);
+    } catch(err) { toast('Súbor sa nedá prečítať: ' + err.message); }
+  };
+  r.readAsArrayBuffer(subor);
+}
+function ukazRozdiel(subor, p){
+  const stare = Object.fromEntries((SRV.polozky || []).map(x => [x.id, x]));
+  const noveM = Object.fromEntries(p.polozky.map(x => [x.id, x]));
+  const d = {pribudli:p.polozky.filter(x => !stare[x.id]), ubudli:Object.values(stare).filter(x => !noveM[x.id]),
+    zmenene:p.polozky.filter(x => stare[x.id] && Math.abs((stare[x.id].mn || 0) - x.mn) > 1e-9).map(x => ({p:x, pred:stare[x.id].mn}))};
+  const zoz = (arr, f) => arr.length ? '<ul style="margin:4px 0 0;padding-left:18px">' + arr.slice(0, 40).map(f).join('') + (arr.length > 40 ? `<li>… a ďalších ${arr.length - 40}</li>` : '') + '</ul>' : ' <span class="muted">žiadne</span>';
+  const zNapoc = d.ubudli.filter(x => pocty(x.id).length).length;
+  $('#sheet').innerHTML = `<div class="hd"><div><h2>${SRV.polozky.length ? 'Nová verzia' : 'Zoznam'}: ${esc(subor)}</h2><div class="sub">${p.majetokN} kariet majetku, ${p.zasobyN} riadkov zásob (hárky: ${esc(p.harkyPouzite.join(', '))})</div></div><button class="x" data-zavriet type="button">×</button></div>
+    <div class="bd"><div class="diffbox">
+      <div class="sec">Pribudli (${d.pribudli.length})</div>${zoz(d.pribudli, x => `<li>${esc(x.nazov)} <span class="muted">– ${esc(x.typ === 'zasoba' ? x.sklad : 'inv. č. ' + x.kod)}, ${fmtN(x.mn)} ${esc(x.mj)}</span></li>`)}
+      <div class="sec">Zmenené účtovné množstvo (${d.zmenene.length})</div>${zoz(d.zmenene, x => `<li>${esc(x.p.nazov)} <span class="muted">– ${fmtN(x.pred)} → ${fmtN(x.p.mn)} ${esc(x.p.mj)}</span></li>`)}
+      <div class="sec">Už nie sú v zozname (${d.ubudli.length})</div>${zoz(d.ubudli, x => `<li>${esc(x.nazov)} <span class="muted">– ${esc(x.typ === 'zasoba' ? x.sklad : 'inv. č. ' + x.kod)}</span></li>`)}
+      ${zNapoc ? `<p class="note" style="color:var(--warn)">${zNapoc} z nich už má napočítané údaje. Tie v databáze zostanú (hárok Počty).</p>` : ''}
+    </div>
+    <div class="fld"><label for="novyStavK">Stav k (text do protokolu)</label><input type="text" id="novyStavK" value="${esc(SRV.meta.stavK || '')}" placeholder="napr. 31. 12. 2025"></div>
+    <p class="note">Po uložení sa zoznam prepíše všetkým skladníkom. Napočítané údaje sa prenesú podľa inventárneho čísla, resp. kódu produktu a skladu.</p></div>
+    <div class="ft"><button class="btn" type="button" data-zavriet>Zrušiť</button><button class="btn pri" type="button" id="pouzitVerziu">Uložiť do databázy</button></div>`;
+  $('#modal').classList.add('on');
+  $('#pouzitVerziu').onclick = async () => {
+    const b = $('#pouzitVerziu'); b.disabled = true; b.textContent = 'Ukladám…';
+    try {
+      await api('nahrajVerziu', C.pin, p.polozky, {subor, stavK:$('#novyStavK').value.trim(), kto:C.kto});
+      await nacitajVsetko(); zavriDetail(); toast('Zoznam je v databáze');
+    } catch(e) { b.disabled = false; b.textContent = 'Uložiť do databázy'; toast('Neuložilo sa: ' + e.message, 4000); }
+  };
+}
+
+/* ---------- výstupy (správca) ---------- */
+function stiahni(nazov, blob){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nazov;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const ktoPolozky = p => [...new Set(pocty(p.id).map(r => r.kto).filter(Boolean))].join(', ');
+function riadkySupisu(polozky){
+  return polozky.map(p => {
+    const u = udaj(p.id), st = stavPolozky(p), n = napocitane(p), rr = pocty(p.id);
+    const fyz = rr.length ? rr.reduce((s, r) => s + (num(r.mn) || 0), 0) : null;
+    return [p.skupina, p.typ === 'zasoba' ? p.sklad : p.typ === 'majetok' ? 'Dlhodobý majetok' : 'Nájdené navyše', p.kod, p.nazov, p.mj,
+      p.typ === 'navyse' ? 0 : p.mn, fyz, jeVydMaj(p) ? num(u.zak) : null, n, poskodene(p) || null, st.d,
+      p.jc ? Math.round(p.jc * 100) / 100 : null, p.typ === 'navyse' ? null : Math.round((p.hodnota || 0) * 100) / 100,
+      st.d && p.jc ? Math.round(st.d * p.jc * 100) / 100 : null, st.t, [...new Set(rr.map(r => r.lok).filter(Boolean))].join(', '), u.pozn || '',
+      (u.vc || []).join(', '), (u.fotky || []).length || null, ktoPolozky(p)];
+  });
+}
+const HLAV_SUPIS = ['Skupina','Sklad','Kód / inv. č.','Názov','MJ','Účtovné mn.','Napočítané fyzicky','U zákazníkov (databáza)','Spolu','Z toho poškodené','Rozdiel mn.',
+  'Jedn. hodnota €','Účtovná hodnota €','Rozdiel €','Stav','Umiestnenie u nás','Poznámka','Výrobné čísla','Fotiek','Počítali'];
+function ktoPocitali(){ return [...new Set(Object.values(V.pocty).filter(r => !r.zmazane).map(r => r.kto).filter(Boolean))].join(', '); }
+function zoradene(polozky){ return polozky.slice().sort((a,b) => (SKUPINY.indexOf(a.skupina) - SKUPINY.indexOf(b.skupina)) || ((b.hodnota || 0) - (a.hodnota || 0))); }
+function exportXlsx(){
+  const s = suhrn(), m = SRV.meta;
+  const pol = zoradene(s.rozsah);
+  const supis = [HLAV_SUPIS].concat(riadkySupisu(pol));
+  if (typeof XLSX === 'undefined') {
+    const csv = supis.map(r => r.map(c => c == null ? '' : '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\r\n');
+    stiahni(`Inventura_Lucka_${dnes()}.csv`, new Blob(['﻿' + csv], {type:'text/csv'}));
+    toast('Excel knižnica nie je načítaná – uložené ako CSV'); return;
+  }
+  const wb = XLSX.utils.book_new();
+  const skup = SKUPINY.filter(x => s.sk[x]).concat(Object.keys(s.sk).filter(x => !SKUPINY.includes(x)));
+  const prot = [['Preberací protokol – majetok a zásoby barelovej divízie (VODAX → BUDIŠ, prevádzka Lúka)'], [],
+    ['Zdroj zoznamu', m.subor || ''], ['Stav k', m.stavK || ''], ['Rozsah', rozsahNazov()], ['Dátum exportu', fmtD(dnes())], ['Počítali', ktoPocitali()], [],
+    ['Skupina','Položiek','Spočítaných','Účtovné mn.','Napočítané mn.','Účtovná hodnota €','Rozdiel €']]
+    .concat(skup.map(x => { const g = s.sk[x]; return [x, g.n, g.s, g.mn, g.nap, Math.round(g.hod * 100) / 100, Math.round(g.rozd * 100) / 100]; }))
+    .concat([['Spolu', s.rozsah.length, s.spoc, null, null, Math.round(s.hod * 100) / 100, Math.round((s.manko + s.prebytok) * 100) / 100], [],
+      ['Manko spolu €', Math.round(s.manko * 100) / 100], ['Prebytok spolu €', Math.round(s.prebytok * 100) / 100], [], [],
+      ['Odovzdal (VODAX):', '', '', 'Prevzal (BUDIŠ a. s.):'], ['Meno, podpis, dátum', '', '', 'Meno, podpis, dátum']]);
+  const add = (meno, aoa, sirky) => { const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = sirky.map(w => ({wch:w})); XLSX.utils.book_append_sheet(wb, ws, meno); };
+  const SIR = [24,22,12,40,6,11,11,11,9,9,9,11,13,11,14,20,30,24,7,16];
+  add('Protokol', prot, [34,12,12,14,14,18,14]);
+  add('Súpis', supis, SIR);
+  add('Rozdiely', [HLAV_SUPIS].concat(riadkySupisu(pol.filter(p => ['manko','prebytok','navyse'].includes(stavPolozky(p).k)))), SIR);
+  add('Nespočítané', [HLAV_SUPIS].concat(riadkySupisu(pol.filter(p => stavPolozky(p).k === 'nie'))), SIR);
+  const zap = [['Skupina','Kód / inv. č.','Názov','Množstvo','Z toho poškodené','Kde','Kto','Kedy']];
+  for (const p of pol) for (const r of pocty(p.id)) zap.push([p.skupina, p.kod, p.nazov, num(r.mn), num(r.pok), r.lok || '', r.kto || '', fmtCas(r.cas)]);
+  add('Zápisy počtov', zap, [24,12,40,10,10,22,16,13]);
+  const vc = [['Skupina','Kód / inv. č.','Názov','Výrobné číslo']];
+  for (const p of pol) for (const c of (udaj(p.id).vc || [])) vc.push([p.skupina, p.kod, p.nazov, c]);
+  add('Výrobné čísla', vc, [24,12,40,24]);
+  const voz = [['Inv. č.','Názov','EČV','Prevzaté','Stav km','Kľúče','STK/EK do','Palivo','Osvedčenie o evidencii','Diaľn. známka / ZK','Poškodenia, výbava','Pracovník (účtovníctvo)']];
+  for (const p of pol.filter(p => p.skupina === 'Vozidlá')) { const v = udaj(p.id).voz || {}, n = napocitane(p);
+    voz.push([p.kod, p.nazov, p.spz, n === 1 ? 'áno' : n === 0 ? 'nie' : '', num(v.km), num(v.kluce), fmtD(v.stk), v.palivo || '', v.oev ? 'áno' : '', v.znamka ? 'áno' : '', v.poskodenia || '', p.pracovnik || p.umiestnenie]); }
+  add('Vozidlá', voz, [8,38,10,9,10,7,11,8,12,12,34,18]);
+  const kon = [['Skupina','Doklad / kontrolný bod','Splnené','Kto','Kedy']];
+  for (const [skupina, body] of Object.entries(KONTROLY)) body.forEach((t, i) => { const z = V.kontroly[skupina + '#' + i] || {}; kon.push([skupina, t, z.ok ? 'áno' : 'nie', z.kto || '', z.cas ? fmtCas(z.cas) : '']); });
+  add('Doklady', kon, [24,60,9,16,13]);
+  const sirote = Object.values(V.poItem).flat().filter(r => !MAPA[r.itemId]);
+  if (sirote.length) add('Mimo zoznamu', [['ID položky','Množstvo','Kde','Kto','Kedy']].concat(sirote.map(r => [r.itemId, num(r.mn), r.lok || '', r.kto || '', fmtCas(r.cas)])), [36,11,22,16,13]);
+  exportVydajniky(add);
+  XLSX.writeFile(wb, `Inventura_Lucka_${dnes()}.xlsx`);
+}
+function tlac(){
+  const s = suhrn(), m = SRV.meta;
+  const skup = SKUPINY.filter(x => s.sk[x]).concat(Object.keys(s.sk).filter(x => !SKUPINY.includes(x)));
+  const rozd = zoradene(s.rozsah).filter(p => ['manko','prebytok','navyse'].includes(stavPolozky(p).k));
+  $('#tlac').innerHTML = `<h1>Preberací protokol – barelová divízia (VODAX → BUDIŠ, Lúka)</h1>
+    <p>Zdroj: ${esc(m.subor || '')} · stav k ${esc(m.stavK || '')} · rozsah: ${esc(rozsahNazov())} · dátum: ${fmtD(dnes())}<br>Počítali: ${esc(ktoPocitali() || '—')}</p>
+    <table><thead><tr><th>Skupina</th><th class="r">Spočítané</th><th class="r">Účtovná hodnota</th><th class="r">Rozdiel</th></tr></thead><tbody>
+    ${skup.map(x => { const g = s.sk[x]; return `<tr><td>${esc(x)}</td><td class="r">${g.s}/${g.n}</td><td class="r">${fmtE(g.hod)}</td><td class="r">${g.rozd ? fmtE(g.rozd) : '–'}</td></tr>`; }).join('')}
+    <tr><th>Spolu</th><th class="r">${s.spoc}/${s.rozsah.length}</th><th class="r">${fmtE(s.hod)}</th><th class="r">${fmtE(s.manko + s.prebytok)}</th></tr></tbody></table>
+    <h3>Rozdiely a veci navyše</h3>
+    ${rozd.length ? `<table><thead><tr><th>Položka</th><th>Sklad / inv. č.</th><th class="r">Účt.</th><th class="r">Napočítané</th><th class="r">Rozdiel</th><th>Poznámka</th></tr></thead><tbody>
+    ${rozd.map(p => { const st = stavPolozky(p); return `<tr><td>${esc(p.nazov)}</td><td>${esc(p.typ === 'zasoba' ? p.sklad : p.typ === 'majetok' ? p.kod : 'navyše')}</td><td class="r">${p.typ === 'navyse' ? '–' : fmtN(p.mn)}</td><td class="r">${fmtN(napocitane(p))}</td><td class="r">${st.d > 0 ? '+' : ''}${fmtN(st.d)}</td><td>${esc(udaj(p.id).pozn || '')}</td></tr>`; }).join('')}</tbody></table>` : '<p>Bez rozdielov.</p>'}
+    <p>Nespočítaných položiek: ${s.rozsah.length - s.spoc}. Úplný súpis je v exporte do Excelu a v Google tabuľke.</p>
+    <div class="podpisy"><div>Odovzdal (VODAX) – meno, podpis, dátum</div><div>Prevzal (BUDIŠ a. s.) – meno, podpis, dátum</div></div>`;
+  window.print();
+}
+
+/* ---------- výdajníky po kusoch (register zo SPIN + nálezy pri skenovaní) ---------- */
+const SPIN_STAV = {sklad:'Na sklade VODAX', vratene:'Vrátený, sklad nezistený', zakaznik:'U zákazníka', nezname:'Bez dokladu', vyradeny:'Vyradený'};
+let REG = {}, REG_JADRO = {}, REG_ZDROJ = null;
+const vcNorm = s => String(s ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+const vcJadro = s => vcNorm(s).split(' ')[0];
+/** Kľúč modelu na párovanie s účtovníctvom: „Výdajník DK2VHC66L WHITE 2024“ → „dk2vhc66lwhite2024“. */
+const modelKluc = n => norm(n).replace(/v[yý]dajn[ií]k[y]?/g, '').replace(/[^a-z0-9]/g, '');
+function postavRegister(){
+  if (!SRV || REG_ZDROJ === SRV.vydRaw) return;
+  REG = {}; REG_JADRO = {};
+  const p = SRV.vydPolia || [];
+  for (const a of SRV.vydRaw || []) {
+    const o = {}; p.forEach((k, i) => { o[k] = a[i] ?? ''; });
+    if (!o.vc) continue;
+    REG[o.vc] = o;
+    (REG_JADRO[vcJadro(o.vc)] = REG_JADRO[vcJadro(o.vc)] || []).push(o);
+  }
+  REG_ZDROJ = SRV.vydRaw;
+}
+/** QR „2018100240  230/19“, výrobný štítok „020X67ZS2018100240“ aj evidenčné číslo „230/19“ → kus v registri. */
+function najdiVydajnik(text){
+  const id = vcNorm(text); if (!id) return {id, kusy:[]};
+  if (REG[id]) return {id, kusy:[REG[id]]};
+  if (/^\d{1,5}\/\d{2,4}$/.test(id)) return {id, kusy:Object.values(REG).filter(v => v.ev === id)};
+  const j = vcJadro(id);
+  if (REG_JADRO[j]) return {id, kusy:REG_JADRO[j]};
+  if (j.length >= 8) { const k = Object.keys(REG_JADRO).filter(x => x.length >= 8 && (j.endsWith(x) || x.endsWith(j))); if (k.length) return {id, kusy:k.flatMap(x => REG_JADRO[x])}; }
+  return {id, kusy:[]};
+}
+const nalezyVc = vc => (V && V.naVc[vc]) || [];
+const vLok = () => ($('#vLok') && $('#vLok').value.trim()) || C.vLok || MIESTO_DEF;
+/** Ako sedí nález so SPIN: ok / info / warn. */
+function zhoda(v, lok){
+  if (!v) return {k:'warn', t:'Nie je v registri SPIN – zapísaný ako nájdený navyše'};
+  if (v.spinStav === 'vyradeny') return {k:'warn', t:'Vo SPIN vyradený' + (v.vyradenie ? ' k ' + fmtD(v.vyradenie) : '') + ' – fyzicky je tu'};
+  if (v.spinStav === 'zakaznik') return {k:'warn', t:'Podľa SPIN je u zákazníka: ' + v.spinMiesto + (v.spinMesto ? ', ' + v.spinMesto : '')};
+  if (v.spinStav === 'vratene') return {k:'ok', t:'Vo SPIN vrátený od ' + v.spinMiesto + ' – sklad teraz známy'};
+  if (v.spinStav === 'nezname') return {k:'ok', t:'Vo SPIN bez dokladu – teraz nájdený'};
+  const skl = norm(v.spinMiesto), l = norm(lok);
+  if (l && skl && !skl.split(/[\s-]+/).filter(w => w.length > 3 && !/vodax|sklad/.test(w)).some(w => l.includes(w))) return {k:'info', t:'Podľa SPIN na sklade: ' + v.spinMiesto};
+  return {k:'ok', t:'Sedí so SPIN (' + v.spinMiesto + ')'};
+}
+/** Zapíše nález kusu. Vráti text pre skener. */
+function zapisNalez(text, lok){
+  lok = lok ?? vLok();
+  const r = najdiVydajnik(text);
+  if (r.kusy.length > 1) return 'Viac kusov s číslom ' + r.id + ' – naskenujte QR kód s výrobným číslom.';
+  const v = r.kusy[0], vc = v ? v.vc : r.id;
+  if (!vc) return '';
+  const uz = nalezyVc(vc);
+  if (uz.some(n => n.lok === lok)) { zobrazPosledny(vc, {k:'info', t:'Už je naskenovaný na tomto mieste (' + (lok || 'bez miesta') + ')'}); return vc + ' – už naskenovaný tu'; }
+  zmen({t:'nalez', lineId:noveId('N'), vc, lok});
+  if (navigator.vibrate) navigator.vibrate(uz.length ? [60, 60, 60] : 70);
+  const z = uz.length ? {k:'warn', t:'Pozor: už bol naskenovaný aj inde – ' + uz.map(n => (n.lok || 'bez miesta') + ' (' + (n.kto || '') + ')').join(', ')} : zhoda(v, lok);
+  zobrazPosledny(vc, z);
+  return (z.k === 'ok' ? '✓ ' : '! ') + vc + ' · ' + (v ? v.model : 'neznámy') + ' · ' + z.t;
+}
+function zobrazPosledny(vc, z){
+  const v = REG[vc];
+  const el = $('#vPosledny'); if (!el) return;
+  el.innerHTML = `<div class="vlast"><span class="i ${z.k === 'ok' ? 'ok' : z.k === 'info' ? 'warn' : 'bad'}">${z.k === 'ok' ? '✓' : '!'}</span><div><b>${esc(vc)}</b> · ${esc(v ? v.model : 'neznámy kus')}<div style="opacity:.85;font-size:13px">${esc(z.t)}</div></div></div>`;
+}
+const skladovy = v => v.spinStav === 'sklad' || v.spinStav === 'vratene';
+const nas = v => !v.vlastnik;
+function vydStat(){
+  const vs = Object.values(REG);
+  const najdene = Object.keys(V.naVc);
+  const najdeneSet = new Set(najdene);
+  const ocak = vs.filter(skladovy), ocakN = ocak.filter(v => najdeneSet.has(v.vc)).length;
+  const navyse = najdene.filter(vc => { const v = REG[vc]; return !v || v.spinStav === 'zakaznik' || v.spinStav === 'vyradeny'; });
+  return {vs, najdene, najdeneSet, ocak, ocakN, navyse, nezn:vs.filter(v => v.spinStav === 'nezname')};
+}
+function vydRiadok(vc, extra){
+  const v = REG[vc], n = nalezyVc(vc), posl = n[n.length - 1];
+  const zz = n.length ? zhoda(v, posl.lok) : null;
+  const pill = n.length ? `<span class="pill ${zz.k === 'ok' ? 'p-ok' : zz.k === 'info' ? 'p-zak' : 'p-prebytok'}">${n.length > 1 ? 'naskenovaný ' + n.length + '×' : 'nájdený'}</span>`
+    : `<span class="pill p-nie">${esc(v ? SPIN_STAV[v.spinStav] || v.spinStav : '')}</span>`;
+  const sub = n.length ? [posl.lok || 'bez miesta', posl.kto, fmtCas(posl.cas), zz.k !== 'ok' ? zz.t : ''] : [v && v.spinMiesto, v && v.spinMesto];
+  return `<button class="item" data-vyd="${esc(vc)}" type="button"><div class="main"><div class="name"><span style="font-family:ui-monospace,Consolas,monospace">${esc(vc)}</span> <span class="muted small">${esc(v ? v.model : 'nie je v registri')}</span></div>
+    <div class="sub">${esc(sub.filter(Boolean).join(' · '))}${extra ? ' · ' + esc(extra) : ''}</div></div><div class="qty">${pill}</div></button>`;
+}
+let vChip = 'naskenovane', vLimit = 60;
+function vykresliVyd(){
+  if (!SRV) return;
+  const lokEl = $('#vLok');
+  if (document.activeElement !== lokEl) lokEl.value = C.vLok || MIESTO_DEF;
+  const regN = Object.keys(REG).length, sl = slepa();
+  $('#vSub').textContent = regN ? `Register zo SPIN: ${regN} výdajníkov${SRV.meta.vydNahrate ? ' · nahratý ' + SRV.meta.vydNahrate : ''}. Naskenujte QR kód na každom kuse.`
+    : 'Register výdajníkov zo SPIN ešte nie je nahratý (Nastavenia → Register výdajníkov). Skenovať sa dá aj tak.';
+  const s = vydStat(), dnesN = Object.values(V.nalezy).filter(r => !r.zmazane && String(r.cas).slice(0, 10) === dnes()).length;
+  const moje = Object.values(V.nalezy).filter(r => !r.zmazane && r.kto === C.kto).length;
+  const pct = s.ocak.length ? Math.round(s.ocakN / s.ocak.length * 100) : 0;
+  $('#vKpi').innerHTML = `<div class="kpi"><div class="l">Naskenovaných kusov</div><div class="v">${s.najdene.length}</div><div class="note">dnes ${dnesN} · moje ${moje}</div></div>` +
+    (sl ? '' : `<div class="kpi"><div class="l">Na skladoch podľa SPIN</div><div class="v">${s.ocakN} / ${s.ocak.length}</div><div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div></div>`) +
+    `<div class="kpi"><div class="l">Nezhody so SPIN</div><div class="v warn">${s.navyse.length}</div><div class="note">u zákazníka / vyradené / neznáme</div></div>` +
+    (sl ? '' : `<div class="kpi"><div class="l">Bez dokladu vo SPIN – nájdené</div><div class="v">${s.nezn.filter(v => s.najdeneSet.has(v.vc)).length} / ${s.nezn.length}</div></div>`);
+  const chips = [['naskenovane', 'Naskenované', s.najdene.length], ['nezhody', 'Nezhody', s.navyse.length]]
+    .concat(sl ? [] : [['chyba', 'Ešte nenájdené na skladoch', s.ocak.length - s.ocakN], ['nezname', 'Bez dokladu vo SPIN', s.nezn.length]])
+    .concat([['vsetky', 'Celý register', regN]]);
+  if (!chips.some(c => c[0] === vChip)) vChip = 'naskenovane';
+  $('#vChips').innerHTML = chips.map(([k, t, n]) => `<button class="chip${vChip === k ? ' on' : ''}" data-vchip="${k}" type="button">${esc(t)}<b>${n}</b></button>`).join('');
+  const q = norm($('#vHladaj').value), qv = vcNorm($('#vHladaj').value);
+  let zoz;
+  if (vChip === 'naskenovane') zoz = Object.values(V.nalezy).filter(r => !r.zmazane).sort((a, b) => String(b.cas).localeCompare(String(a.cas))).map(r => r.vc).filter((x, i, a) => a.indexOf(x) === i);
+  else if (vChip === 'nezhody') zoz = s.navyse;
+  else if (vChip === 'chyba') zoz = s.ocak.filter(v => !s.najdeneSet.has(v.vc)).sort((a, b) => a.spinMiesto.localeCompare(b.spinMiesto, 'sk') || a.vc.localeCompare(b.vc)).map(v => v.vc);
+  else if (vChip === 'nezname') zoz = s.nezn.map(v => v.vc);
+  else zoz = Object.keys(REG);
+  if (q) zoz = zoz.filter(vc => { const v = REG[vc] || {}; const n = nalezyVc(vc);
+    return vc.includes(qv) || v.ev === qv || norm([v.model, v.spinMiesto, v.spinMesto, n.map(x => x.lok + ' ' + x.kto).join(' ')].join(' ')).includes(q); });
+  $('#vZoznam').innerHTML = zoz.length ? `<div class="list">${zoz.slice(0, vLimit).map(vc => vydRiadok(vc)).join('')}</div>` +
+    (zoz.length > vLimit ? `<button class="btn addbtn" type="button" data-vviac>Zobraziť ďalších (${zoz.length - vLimit})</button>` : '')
+    : `<div class="empty-state">${vChip === 'naskenovane' ? 'Zatiaľ nič naskenované. Začnite tlačidlom Skenovať výdajníky.' : 'Nič tu nie je.'}</div>`;
+}
+/** Karta výdajníka v štýle Flex Mobility: údaje, servis zo SPIN, nálezy pri inventúre. */
+function otvorKartuVyd(vc){
+  otvorene = null;
+  const v = REG[vc], n = nalezyVc(vc), cakaju = new Set(OUT.filter(o => o.t === 'nalez').map(o => o.lineId));
+  const r = (a, b) => b ? `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>` : '';
+  const servis = v ? [['Sanitácia', v.sanitacia], ['Oprava', v.oprava], ['Revízia', v.revizia]].filter(x => x[1]).sort((a, b) => String(b[1]).localeCompare(String(a[1]))) : [];
+  const z = n.length ? zhoda(v, n[n.length - 1].lok) : null;
+  $('#sheet').innerHTML = `<div class="hd"><div><h2>Výdajník</h2><div class="sub">${esc(v ? 'register SPIN' : 'nie je v registri SPIN')}</div></div><button class="x" data-zavriet type="button" aria-label="Zavrieť">×</button></div>
+    <div class="bd"><div class="fx"><div class="fxh"><div class="vc">${esc(vc)}</div><div class="m">${esc(v ? v.model : 'neznámy model')}</div></div>
+      <dl class="dl">${v ? r('Typ', v.model) + r('Výrobné číslo', v.vc) + r('Evidenčné číslo', v.ev) + r('Názov', 'Výdajník ' + v.model) + (vidiCeny() && v.obstCena ? r('Cena', fmtE(num(v.obstCena))) : '') +
+        r('Vlastník', v.vlastnik ? 'zákazník – ' + v.vlastnik : 'VODAX (preberá sa)') + r('Dátum zaradenia', fmtD(v.zaradenie)) + r('Dátum vyradenia', fmtD(v.vyradenie)) + r('Poznámka', v.pozn) +
+        r('Podľa SPIN', (SPIN_STAV[v.spinStav] || v.spinStav) + (v.spinMiesto ? ' – ' + v.spinMiesto : '') + (v.spinMesto ? ', ' + v.spinMesto : '')) : '<dt>Stav</dt><dd>Kus nie je v zostave zo SPIN – overiť štítok a zapísať do poznámky.</dd>'}</dl>
+      <div class="fxs">Servis výdajníka (posledné záznamy vo SPIN)</div>
+      ${servis.length ? `<table><thead><tr><th>Dátum</th><th>Činnosť</th></tr></thead><tbody>${servis.map(x => `<tr><td>${esc(fmtD(String(x[1]).slice(0, 10)))}</td><td>${esc(x[0])}</td></tr>`).join('')}</tbody></table>` : '<div class="fxbox muted">Bez záznamu.</div>'}
+      <div class="fxs">Inventúra</div>
+      ${n.length ? `<table><thead><tr><th>Kedy</th><th>Kde</th><th>Kto</th><th></th></tr></thead><tbody>${n.map(x => `<tr><td>${esc(fmtCas(x.cas))}${cakaju.has(x.lineId) ? ' ⏳' : ''}</td><td>${esc(x.lok || 'bez miesta')}</td><td>${esc(x.kto || '')}</td><td class="r"><button class="btn small danger" type="button" data-nalez-zrus="${esc(x.lineId)}">Zrušiť</button></td></tr>`).join('')}</tbody></table>
+        <div class="fxbox"><span class="pill ${z.k === 'ok' ? 'p-ok' : z.k === 'info' ? 'p-zak' : 'p-prebytok'}">${esc(z.t)}</span></div>` : '<div class="fxbox muted">Pri inventúre ešte nenaskenovaný.</div>'}
+    </div>
+    <button class="btn pri" type="button" data-nalez-tu="${esc(vc)}">Je tu – zapísať nález${vLok() ? ' (' + esc(vLok()) + ')' : ''}</button></div>`;
+  $('#modal').classList.add('on');
+}
+/** Porovnanie po modeloch: účtovné karty + zásoby vs. SPIN (naše aktívne) a nálezy. */
+function vydPoModeloch(){
+  const m = {};
+  const g = k => m[k] || (m[k] = {nazov:'', ucet:0, karty:0, spin:0, zak:0, naj:0});
+  for (const p of POLOZKY) if (p.skupina === 'Výdajníky v majetku' || p.skupina === 'Výdajníky – nové na sklade') {
+    const k = modelKluc(p.nazov) || '—bez modelu'; const x = g(k); x.ucet += num(p.mn) || 0; x.karty++; if (!x.nazov) x.nazov = k === '—bez modelu' ? 'Karty bez modelu („Výdajníky“)' : p.nazov.replace(/^V[ýy]dajn[íi]k[y]?\s*/i, '');
+  }
+  const najd = new Set(Object.keys(V.naVc));
+  for (const v of Object.values(REG)) {
+    if (!nas(v) || v.spinStav === 'vyradeny') continue;
+    const x = g(v.kluc || modelKluc(v.model)); if (!x.nazov) x.nazov = v.model;
+    x.spin++; if (v.spinStav === 'zakaznik') x.zak++; else if (najd.has(v.vc)) x.naj++;
+  }
+  return Object.values(m).sort((a, b) => (b.ucet + b.spin) - (a.ucet + a.spin));
+}
+function vydPoSkladoch(){
+  const m = {}, najd = new Set(Object.keys(V.naVc));
+  for (const v of Object.values(REG)) if (skladovy(v)) {
+    const k = v.spinStav === 'vratene' ? 'Vrátené – sklad nezistený' : v.spinMiesto || '—';
+    const x = m[k] || (m[k] = {n:0, naj:0}); x.n++; if (najd.has(v.vc)) x.naj++;
+  }
+  return Object.entries(m).sort((a, b) => b[1].n - a[1].n);
+}
+function vykresliVydPrehlad(){
+  const sl = slepa();
+  const sk = vydPoSkladoch();
+  $('#tabVydSklady').innerHTML = !Object.keys(REG).length ? '<p class="muted small">Register výdajníkov zo SPIN ešte nie je nahratý.</p>' :
+    `<div class="bars">${sk.map(([k, x]) => `<div class="barrow"><span>${esc(k)}</span><span class="n">${sl ? x.naj + ' nájdených' : x.naj + ' / ' + x.n}</span>${sl ? '' : `<div class="bar"><i style="width:${x.n ? Math.round(x.naj / x.n * 100) : 0}%"></i></div>`}</div>`).join('')}</div>
+    <p class="note">Kusy, ktoré podľa SPIN majú byť na skladoch VODAX alebo boli vrátené od zákazníkov. Nájdené = naskenované kdekoľvek.</p>`;
+  if (!jeAdmin()) return;
+  const mm = vydPoModeloch();
+  const sum = mm.reduce((a, x) => ({ucet:a.ucet + x.ucet, spin:a.spin + x.spin, zak:a.zak + x.zak, naj:a.naj + x.naj}), {ucet:0, spin:0, zak:0, naj:0});
+  $('#tabVydModely').innerHTML = !mm.length ? '<p class="muted small">Nič na porovnanie.</p>' :
+    `<table><thead><tr><th>Model</th><th class="r">Účtovne</th><th class="r">SPIN naše</th><th class="r">u zákazníkov</th><th class="r">nájdené</th><th class="r">Spolu</th><th class="r">Rozdiel</th></tr></thead><tbody>` +
+    mm.map(x => { const sp = x.zak + x.naj, d = sp - x.ucet;
+      return `<tr><td>${esc(x.nazov)}${x.karty ? `<div class="muted small">${x.karty} ${x.karty === 1 ? 'karta' : 'kariet / položiek'}</div>` : ''}</td><td class="r">${fmtN(x.ucet)}</td><td class="r">${x.spin}</td><td class="r">${x.zak}</td><td class="r">${x.naj}</td><td class="r"><b>${sp}</b></td><td class="r" style="color:${d < 0 ? 'var(--bad)' : d > 0 ? 'var(--warn)' : 'var(--ok)'}">${d > 0 ? '+' : ''}${d}</td></tr>`; }).join('') +
+    `<tr><th>Spolu</th><th class="r">${fmtN(sum.ucet)}</th><th class="r">${sum.spin}</th><th class="r">${sum.zak}</th><th class="r">${sum.naj}</th><th class="r">${sum.zak + sum.naj}</th><th class="r">${sum.zak + sum.naj - sum.ucet > 0 ? '+' : ''}${sum.zak + sum.naj - sum.ucet}</th></tr></tbody></table>`;
+}
+/** Register zo SPIN (zostava od Grafobalu) → riadky pre hárok Výdajníky. */
+function spinRegister(riadky){
+  let hi = -1;
+  const ix = {};
+  for (let i = 0; i < Math.min(riadky.length, 10); i++) if ((riadky[i] || []).includes('VYROBNE_CISLO')) { hi = i; break; }
+  if (hi < 0) throw new Error('V súbore nie je stĺpec VYROBNE_CISLO – je to zostava „Výdajníky (dump)“?');
+  riadky[hi].forEach((h, i) => { ix[String(h).trim()] = i; });
+  const g = (r, k) => { const v = r[ix[k]]; return v == null ? '' : v; };
+  const s = (r, k) => String(g(r, k)).replace(/_x000D_/g, '').trim();
+  const d = (r, k) => { const v = g(r, k); if (!v) return ''; const x = v instanceof Date ? v : new Date(v); if (isNaN(x) || x.getFullYear() > new Date().getFullYear() + 1) return '';
+    return new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+  const out = {};
+  for (const r of riadky.slice(hi + 1)) {
+    const vc = vcNorm(g(r, 'VYROBNE_CISLO')); if (!vc) continue;
+    const nazov = s(r, 'NAZOV_VYDAJNIKA'), model = nazov.replace(/^V[ýy]dajn[íi]k\s*/i, ''), om = s(r, 'OM_FIRMA_NAZOV'), mn = num(g(r, 'DOKLAD_MNOZSTVO'));
+    const vlast = s(r, 'VLASTNIK_NAZOV_FIRMY').replace(/^Firma\s*:\s*/i, '').replace(/,?\s*IČO:.*$/i, '').trim() || (/vlastn/i.test(s(r, 'NAZOV_PRODUKTU') + ' ' + nazov) ? 'zákazník' : '');
+    const spinStav = g(r, 'DATUM_VYRADENIA') ? 'vyradeny' : mn === 1 ? (/vodax/i.test(om) ? 'sklad' : 'zakaznik') : mn === -1 ? 'vratene' : 'nezname';
+    const rok = (nazov.match(/\b(19|20)\d{2}\b/) || [''])[0] || d(r, 'DATUM_ZARADENIA').slice(0, 4);
+    out[vc] = {vc, ev:(vc.match(/(\d{1,5}\/\d{2,4})$/) || [])[1] || '', model, kluc:modelKluc(model), kod:s(r, 'KOD_PRODUKTU'), rok, vlastnik:vlast, spinStav,
+      spinMiesto:om, spinMesto:s(r, 'OM_FIRMA_MESTO'), obstCena:s(r, 'OBSTARAVACIA_CENA'), zaradenie:d(r, 'DATUM_ZARADENIA'), vyradenie:d(r, 'DATUM_VYRADENIA'),
+      sanitacia:d(r, 'POSLEDNA_SANITACIA'), oprava:d(r, 'POSEDNA_OPRAVA') || d(r, 'POSLEDNA_OPRAVA'), revizia:d(r, 'POSLEDNA_REVIZIA'),
+      pozn:[s(r, 'POPIS'), s(r, 'POZNAMKA').replace(/^[Š♦\s]+/, '')].filter(Boolean).map(x => x.replace(/\r+\n?/g, '\n').trim()).filter((x, i, a) => x && a.indexOf(x) === i).join(' · ')};
+  }
+  return Object.values(out);
+}
+function citajRegister(subor){
+  if (typeof XLSX === 'undefined') { toast('Knižnica na čítanie Excelu sa nenačítala – treba internet.'); return; }
+  const fr = new FileReader();
+  fr.onload = async e => {
+    let rows;
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+      const meno = wb.SheetNames.find(n => /dump/i.test(n)) || wb.SheetNames.find(n => (XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1})[0] || []).includes('VYROBNE_CISLO'));
+      if (!meno) throw new Error('V súbore nie je hárok so stĺpcom VYROBNE_CISLO.');
+      rows = spinRegister(XLSX.utils.sheet_to_json(wb.Sheets[meno], {header:1, raw:true, defval:''}));
+    } catch(err) { toast('Súbor sa nedá prečítať: ' + err.message, 4000); return; }
+    const st = {}; rows.forEach(v => { st[v.spinStav] = (st[v.spinStav] || 0) + 1; });
+    if (!confirm(`Register: ${rows.length} výdajníkov (${Object.entries(st).map(([k, n]) => (SPIN_STAV[k] || k) + ' ' + n).join(', ')}).\nNahrať do databázy? Starý register sa prepíše, nálezy ostanú.`)) return;
+    const b = $('#vydRegBtn'); b.disabled = true;
+    try {
+      const D = 800, n = Math.ceil(rows.length / D);
+      for (let i = 0; i < n; i++) { b.textContent = `Nahrávam ${i + 1} / ${n}…`; await api('nahrajVydajniky', C.pin, rows.slice(i * D, (i + 1) * D), i === 0, i === n - 1, {subor:subor.name, kto:C.kto}); }
+      await nacitajVsetko(); toast('Register výdajníkov je v databáze (' + rows.length + ' ks)');
+    } catch(err) { toast('Nahratie sa nedokončilo: ' + err.message + ' – skúste znova.', 5000); }
+    finally { b.disabled = false; b.textContent = 'Nahrať register (Excel zo SPIN)'; }
+  };
+  fr.readAsArrayBuffer(subor);
+}
+function exportVydajniky(add){
+  if (!Object.keys(REG).length && !Object.keys(V.naVc).length) return;
+  const najd = Object.values(V.nalezy).filter(r => !r.zmazane).sort((a, b) => String(a.lok).localeCompare(String(b.lok)) || String(a.cas).localeCompare(String(b.cas)));
+  add('Výdajníky – nálezy', [['Výrobné číslo','Ev. č.','Model','Vlastník','Nájdený – kde','Kto','Kedy','Podľa SPIN','Zhoda']].concat(najd.map(r => { const v = REG[r.vc];
+    return [r.vc, v ? v.ev : '', v ? v.model : 'nie je v registri SPIN', v ? (v.vlastnik ? 'zákazník – ' + v.vlastnik : 'VODAX') : '', r.lok || '', r.kto || '', fmtCas(r.cas),
+      v ? (SPIN_STAV[v.spinStav] || v.spinStav) + (v.spinMiesto ? ' – ' + v.spinMiesto : '') : '', zhoda(v, r.lok).t]; })), [22,8,30,22,22,16,13,40,44]);
+  const s = vydStat();
+  add('Výdajníky – nenájdené', [['Výrobné číslo','Ev. č.','Model','Vlastník','Podľa SPIN','Miesto vo SPIN','Mesto','Posl. sanitácia']].concat(
+    s.ocak.filter(v => !s.najdeneSet.has(v.vc)).map(v => [v.vc, v.ev, v.model, v.vlastnik ? 'zákazník – ' + v.vlastnik : 'VODAX', SPIN_STAV[v.spinStav], v.spinMiesto, v.spinMesto, fmtD(v.sanitacia)])), [22,8,30,22,24,40,16,13]);
+  add('Výdajníky u zákazníkov', [['Zákazník (SPIN)','Mesto','Výrobné číslo','Ev. č.','Model','Vlastník']].concat(
+    Object.values(REG).filter(v => v.spinStav === 'zakaznik').sort((a, b) => a.spinMiesto.localeCompare(b.spinMiesto, 'sk')).map(v => [v.spinMiesto, v.spinMesto, v.vc, v.ev, v.model, v.vlastnik ? 'zákazník – ' + v.vlastnik : 'VODAX'])), [40,18,22,8,30,22]);
+  add('Výdajníky – po modeloch', [['Model','Účtovne (karty + sklad)','Kariet / položiek','SPIN naše aktívne','U zákazníkov (SPIN)','Nájdené pri inventúre','Spolu','Rozdiel']].concat(
+    vydPoModeloch().map(x => [x.nazov, x.ucet, x.karty, x.spin, x.zak, x.naj, x.zak + x.naj, x.zak + x.naj - x.ucet])), [34,14,10,12,12,12,10,10]);
+}
+
+/* ---------- celkové vykreslenie ---------- */
+function obnovHlavicku(){
+  const rozsah = POLOZKY.filter(p => vRozsahu(p)), s = rozsah.filter(p => stavPolozky(p).k !== 'nie').length;
+  const pct = rozsah.length ? Math.round(s / rozsah.length * 100) : 0;
+  $('#progTxt').textContent = `${s} z ${rozsah.length}`; $('#progBar').style.width = pct + '%'; $('#progPct').textContent = pct + ' %';
+  $('#whoBtn').textContent = C.kto || 'Meno';
+  obnovSyncStav();
+}
+let aktTab = 'domov';
+
+/* ---------- DOMOV – dlaždice ako v aplikácii Výdajníky ---------- */
+const IKONY = {
+  pocitat:'<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>',
+  chyba:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  vyd:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 7h4M9 12h2M13 12h2"/>',
+  navyse:'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  prehlad:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  rozdiel:'<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
+  nastav:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
+};
+const svgIk = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IKONY[k]}</svg>`;
+const dlazdica = (ik, t, sub, akcia, odznak) => `<button class="tile" type="button" data-domov="${akcia}">${svgIk(ik)}<div><div class="t">${esc(t)}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>${odznak ? `<span class="b2">${esc(odznak)}</span>` : ''}</button>`;
+const jeDnesCas = c => { const d = new Date(c); return !isNaN(d) && d.toDateString() === new Date().toDateString(); };
+function vykresliDomov(){
+  if (!V) { $('#dHello').innerHTML = ''; $('#dTiles').innerHTML = ''; $('#dMoje').innerHTML = ''; return; }
+  const h = new Date().getHours(), pozdrav = h < 10 ? 'Dobré ráno' : h < 18 ? 'Dobrý deň' : 'Dobrý večer';
+  const krstne = String(C.kto || '').trim().split(/\s+/)[0];
+  $('#dHello').innerHTML = `<h2>${esc(pozdrav)}${krstne ? ', ' + esc(krstne) : ''}</h2><div class="s">${jeAdmin() ? 'Správca' : 'Skladník'} · ${esc(MIESTO_DEF)} · ${esc(new Date().toLocaleDateString('sk-SK', {weekday:'long', day:'numeric', month:'numeric'}))}</div>`;
+  const rozsah = POLOZKY.filter(p => vRozsahu(p)), spoc = rozsah.filter(p => stavPolozky(p).k !== 'nie').length;
+  const rozd = rozsah.filter(p => ['manko','prebytok','navyse'].includes(stavPolozky(p).k)).length;
+  const nalezy = Object.values(V.nalezy).filter(r => !r.zmazane);
+  const vydKusov = new Set(nalezy.map(r => r.vc)).size;
+  const T = [
+    dlazdica('pocitat', 'Počítať majetok', `${spoc} z ${rozsah.length} spočítaných`, 'supis'),
+    dlazdica('chyba', 'Čo ešte chýba', `${rozsah.length - spoc} nespočítaných`, 'nespocitane'),
+    dlazdica('vyd', 'Skenovať výdajníky', vydKusov ? `${vydKusov} naskenovaných kusov` : 'QR kód na každom kuse', 'vyd'),
+    dlazdica('navyse', 'Nájdené navyše', 'vec, ktorá nie je v zozname', 'navyse')
+  ];
+  if (jeAdmin()) T.push(dlazdica('rozdiel', 'Rozdiely a protokol', 'manko, prebytok, Excel', 'prehlad', rozd ? String(rozd) : ''));
+  else T.push(dlazdica('prehlad', 'Prehľad', 'koľko je spočítané', 'prehlad'));
+  T.push(dlazdica('nastav', 'Nastavenia', jeAdmin() ? 'zoznam, skladníci, kódy' : 'meno, synchronizácia', 'data'));
+  $('#dTiles').innerHTML = T.join('');
+  const lokEl = $('#dLokDomov');
+  if (document.activeElement !== lokEl) lokEl.value = poslLok || MIESTO_DEF;
+  const mojePocty = Object.values(V.pocty).filter(r => r && !r.zmazane && r.kto === C.kto && jeDnesCas(r.cas));
+  const mojeNalezy = nalezy.filter(r => r.kto === C.kto && jeDnesCas(r.cas));
+  $('#dMoje').innerHTML = `<div class="kpi"><div class="l">Zapísané počty</div><div class="v">${mojePocty.length}</div></div>` +
+    `<div class="kpi"><div class="l">Rôznych položiek</div><div class="v">${new Set(mojePocty.map(r => r.itemId)).size}</div></div>` +
+    `<div class="kpi"><div class="l">Naskenované výdajníky</div><div class="v">${mojeNalezy.length}</div></div>` +
+    `<div class="kpi"><div class="l">Čaká na odoslanie</div><div class="v${OUT.length ? ' warn' : ''}">${OUT.length}</div></div>`;
+}
+function vykresli(){
+  obnovHlavicku();
+  const lok = new Set(LOKACIE); if (V) Object.values(V.pocty).forEach(r => r && r.lok && lok.add(r.lok));
+  // externé sklady a medzisklady VODAXu zo zoznamu zásob (od 2. 11. z nich zavážajú naši šoféri)
+  for (const p of POLOZKY) if (p.typ === 'zasoba' && p.sklad && !/l[uú]ka|materi/i.test(p.sklad)) lok.add(p.sklad.replace(/^\d+-/, ''));
+  $('#lokacie').innerHTML = [...lok].map(l => `<option value="${esc(l)}">`).join('');
+  if (aktTab === 'domov') vykresliDomov(); else if (aktTab === 'supis') { vykresliFiltre(); vykresliSupis(); } else if (aktTab === 'vyd') vykresliVyd(); else if (aktTab === 'prehlad') vykresliPrehlad(); else vykresliData();
+}
+/** Po synchronizácii: prekreslí, ale nezhodí rozpísané hľadanie ani pozíciu v zozname. */
+function vykresliTicho(){ const y = window.scrollY; vykresli(); window.scrollTo(0, y); }
+function prepniTab(t){
+  aktTab = t;
+  document.querySelectorAll('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + t));
+  document.querySelectorAll('nav.bottom button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  window.scrollTo(0, 0); vykresli();
+}
+
+/* ---------- udalosti ---------- */
+document.querySelector('nav.bottom').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) prepniTab(b.dataset.tab); });
+$('#dTiles').addEventListener('click', e => {
+  const b = e.target.closest('[data-domov]'); if (!b || !SRV) return;
+  const a = b.dataset.domov;
+  if (a === 'navyse') { otvorPridanie(); return; }
+  if (a === 'supis' || a === 'nespocitane') { C.filtre.stav = a === 'nespocitane' ? 'nie' : ''; ulozConf(); prepniTab('supis'); return; }
+  prepniTab(a);
+});
+$('#dLokDomov').addEventListener('change', e => { const l = e.target.value.trim() || MIESTO_DEF; poslLok = l; ulozLS('inv-lucka-lok', l); C.vLok = l; ulozConf(); toast('Miesto: ' + l); });
+$('#fSklad').addEventListener('change', e => { C.filtre.sklad = e.target.value; ulozConf(); vykresli(); });
+$('#fHladaj').addEventListener('input', e => { C.filtre.hladaj = e.target.value; ulozConf(); vykresliSupis(); });
+$('#fSlepa').addEventListener('change', e => { C.filtre.slepa = e.target.checked; ulozConf(); vykresli(); });
+$('#fSkupiny').addEventListener('click', e => { const b = e.target.closest('[data-skup]'); if (b) { C.filtre.skupina = b.dataset.skup; ulozConf(); vykresliSupis(); } });
+$('#fStav').addEventListener('click', e => { const b = e.target.closest('[data-stav]'); if (b) { C.filtre.stav = b.dataset.stav; ulozConf(); vykresliSupis(); } });
+$('#zoznam').addEventListener('click', e => { const b = e.target.closest('.item'); if (b) otvorDetail(b.dataset.id); });
+$('#tabRozdiely').addEventListener('click', e => { const r = e.target.closest('tr[data-id]'); if (r) otvorDetail(r.dataset.id); });
+$('#pridatBtn').addEventListener('click', () => { if (SRV) otvorPridanie(); });
+$('#whoBtn').addEventListener('click', () => prepniTab('data'));
+$('#syncBtn').addEventListener('click', () => { sync(); prepniTab('data'); });
+$('#syncTerazBtn').addEventListener('click', () => sync());
+$('#ktoInput').addEventListener('input', e => { C.kto = e.target.value.trim(); ulozConf(); obnovHlavicku(); });
+$('#odhlasBtn').addEventListener('click', () => odhlas(false));
+$('#stavKInput').addEventListener('change', async e => { try { SRV.meta = Object.assign(SRV.meta, await api('nastavAdmin', C.pin, {stavK:e.target.value.trim()})); ulozCache(); toast('Uložené'); } catch(err) { toast('Neuložilo sa: ' + err.message); } });
+$('#slepaSklad').addEventListener('change', async e => {
+  try { SRV.meta = Object.assign(SRV.meta, await api('nastavAdmin', C.pin, {slepa:e.target.checked})); ulozCache(); toast(e.target.checked ? 'Skladníci nevidia účtovné množstvá' : 'Skladníci vidia účtovné množstvá'); }
+  catch(err) { e.target.checked = !e.target.checked; toast('Neuložilo sa: ' + err.message); }
+});
+$('#nahratBtn').addEventListener('click', () => $('#nahrat').click());
+$('#nahrat').addEventListener('change', e => { if (e.target.files[0]) citajExcel(e.target.files[0]); e.target.value = ''; });
+$('#exportXlsx').addEventListener('click', exportXlsx);
+$('#tlacBtn').addEventListener('click', tlac);
+$('#supisBtn').addEventListener('click', async () => {
+  const b = $('#supisBtn'); b.disabled = true;
+  try { const r = await api('prepocitajSupis', C.pin); $('#supisInfo').innerHTML = `Súpis prepočítaný (${r.riadkov} položiek). <a href="${esc(r.url)}" target="_blank" rel="noopener">Otvoriť Google tabuľku</a>`; }
+  catch(e) { toast('Nepodarilo sa: ' + e.message); } finally { b.disabled = false; }
+});
+/* výdajníky po kusoch */
+$('#vSkenBtn').addEventListener('click', () => { C.vLok = vLok(); ulozConf(); if (!C.vLok) toast('Tip: vyplňte „Kde skenujem“ – zapíše sa ku každému kusu.', 3500); spustiSken(t => zapisNalez(t)); });
+$('#vLok').addEventListener('change', e => { C.vLok = e.target.value.trim(); ulozConf(); });
+$('#vRucneBtn').addEventListener('click', () => { const i = $('#vRucne'); if (!i.value.trim()) return; C.vLok = vLok(); ulozConf(); toast(zapisNalez(i.value), 3500); i.value = ''; vykresliVyd(); });
+$('#vRucne').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#vRucneBtn').click(); } });
+$('#vFotoBtn').addEventListener('click', () => { C.vLok = vLok(); ulozConf(); fotkaCiel = t => { const m = zapisNalez(t); vykresliVyd(); return m; }; $('#skenVstup').value = ''; $('#skenVstup').click(); });
+$('#vHladaj').addEventListener('input', () => { vLimit = 60; vykresliVyd(); });
+$('#vChips').addEventListener('click', e => { const b = e.target.closest('[data-vchip]'); if (b) { vChip = b.dataset.vchip; vLimit = 60; vykresliVyd(); } });
+$('#vZoznam').addEventListener('click', e => { if (e.target.closest('[data-vviac]')) { vLimit += 200; vykresliVyd(); return; } const b = e.target.closest('[data-vyd]'); if (b) otvorKartuVyd(b.dataset.vyd); });
+$('#vydRegBtn').addEventListener('click', () => $('#vydReg').click());
+$('#vydReg').addEventListener('change', e => { if (e.target.files[0]) citajRegister(e.target.files[0]); e.target.value = ''; });
+$('#kontroly').addEventListener('change', e => { const c = e.target.closest('[data-kontrola]'); if (c) zmen({t:'kontrola', key:c.dataset.kontrola, ok:c.checked}); });
+$('#scanStop').addEventListener('click', zastavSken);
+$('#scanFotoBtn').addEventListener('click', () => { fotkaCiel = null; $('#skenVstup').value = ''; $('#skenVstup').click(); });
+$('#foto').addEventListener('click', () => $('#foto').classList.remove('on'));
+$('#fotoVstup').addEventListener('change', e => { if (e.target.files[0]) nahrajFotku(e.target.files[0]); e.target.value = ''; });
+$('#skenVstup').addEventListener('change', e => { if (e.target.files[0]) kodZFotky(e.target.files[0]); e.target.value = ''; });
+
+$('#modal').addEventListener('click', e => {
+  if (e.target === $('#modal') || e.target.closest('[data-zavriet]')) { zavriDetail(); return; }
+  if (e.target.id === 'nUloz') { ulozPridanie(); return; }
+  const nz = e.target.closest('[data-nalez-zrus]');
+  if (nz) { const r = V.nalezy[nz.dataset.nalezZrus]; if (r && confirm(`Zrušiť nález ${r.vc} (${r.lok || 'bez miesta'})?`)) { zmen({t:'nalez', lineId:r.lineId, vc:r.vc, lok:r.lok, zmazane:true}); otvorKartuVyd(r.vc); } return; }
+  const nt = e.target.closest('[data-nalez-tu]');
+  if (nt) { toast(zapisNalez(nt.dataset.nalezTu), 3500); otvorKartuVyd(nt.dataset.nalezTu); return; }
+  if (!otvorene) return;
+  const p = MAPA[otvorene];
+  const krok = e.target.closest('[data-krok]');
+  if (krok) { const i = $('#dMn'); i.value = Math.max(0, (num(i.value) ?? 0) + num(krok.dataset.krok)); return; }
+  if (e.target.closest('[data-zapisat]')) { zapisPocet(num($('#dMn').value)); return; }
+  const kus = e.target.closest('[data-kus]');
+  if (kus) {
+    for (const r of pocty(otvorene)) zmen({t:'pocet', lineId:r.lineId, itemId:otvorene, mn:r.mn, pok:r.pok, lok:r.lok, zmazane:true});
+    zapisPocet(num(kus.dataset.kus)); toast(kus.dataset.kus === '1' ? 'Zapísané: je tu' : 'Zapísané: chýba'); return;
+  }
+  const pz = e.target.closest('[data-pocet-zmaz]');
+  if (pz) { const r = V.pocty[pz.dataset.pocetZmaz]; if (r && confirm(`Zmazať počet ${fmtN(r.mn)} (${r.lok || 'bez miesta'}, ${r.kto || 'bez mena'})?`)) zmen({t:'pocet', lineId:r.lineId, itemId:r.itemId, mn:r.mn, pok:r.pok, lok:r.lok, zmazane:true}); return; }
+  if (e.target.closest('[data-vc-pridat]')) { const i = $('#dVc'); if (pridajVc(i.value)) i.value = ''; i.focus(); return; }
+  const zm = e.target.closest('[data-vc-zmaz]');
+  if (zm) { zmen({t:'udaj', itemId:otvorene, vcDel:[zm.dataset.vcZmaz]}); return; }
+  if (e.target.closest('[data-sken]')) { spustiSken(); return; }
+  if (e.target.closest('[data-sken-foto]')) { fotkaCiel = null; $('#skenVstup').value = ''; $('#skenVstup').click(); return; }
+  if (e.target.closest('[data-foto]')) { $('#fotoVstup').click(); return; }
+  const fu = e.target.closest('[data-foto-ukaz]'); if (fu) { ukazFotku(fu.dataset.fotoUkaz); return; }
+  const fz = e.target.closest('[data-foto-zmaz]'); if (fz) { if (confirm('Odobrať fotku z položky? (Na Disku Google zostane.)')) zmen({t:'udaj', itemId:otvorene, fotkyDel:[fz.dataset.fotoZmaz]}); return; }
+  if (e.target.closest('[data-zmazat-navyse]')) {
+    if (!confirm('Odstrániť túto nájdenú vec aj s jej počtami?')) return;
+    for (const r of pocty(p.id)) zmen({t:'pocet', lineId:r.lineId, itemId:r.itemId, mn:r.mn, pok:r.pok, lok:r.lok, zmazane:true});
+    const n = V.navyse[p.id]; zmen({t:'navyse', id:p.id, nazov:n.nazov, skupina:n.skupina, mj:n.mj, zmazane:true});
+    zavriDetail();
+  }
+});
+$('#modal').addEventListener('input', e => {
+  if (!otvorene) return;
+  const t = e.target;
+  if (t.id === 'dZak') zmen({t:'udaj', itemId:otvorene, patch:{zak:num(t.value)}});
+  else if (t.id === 'dPozn') zmen({t:'udaj', itemId:otvorene, patch:{pozn:t.value}});
+  else if (t.dataset.voz) zmen({t:'udaj', itemId:otvorene, patch:{voz:{[t.dataset.voz]: t.type === 'checkbox' ? t.checked : t.value}}});
+});
+$('#modal').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (e.target.id === 'dVc') { e.preventDefault(); if (pridajVc(e.target.value)) e.target.value = ''; }
+  else if (e.target.id === 'dMn') { e.preventDefault(); zapisPocet(num(e.target.value)); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('#scan').classList.contains('on')) zastavSken(); else if ($('#foto').classList.contains('on')) $('#foto').classList.remove('on'); else if ($('#modal').classList.contains('on')) zavriDetail(); } });
+window.addEventListener('load', () => { if (jeAdmin() && aktTab === 'data') vykresliData(); });
+
+/* ---------- štart ---------- */
+obnovView();
+if (C.pin && SRV) { nastavRolu(); vykresli(); sync(); }
+else if (C.pin) { vykresli(); nacitajVsetko().then(() => sync()).catch(e => { if (jeChybaKodu(e)) odhlas(true); else { online = false; obnovSyncStav(); toast('Nie je spojenie so serverom.', 3500); } }); }
+else { vykresli(); ukazLogin(); }
+</script>
+<script>
+// inštalácia a štart bez signálu (service worker); po novej verzii sa appka obnoví pri ďalšom otvorení
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</body>
+</html>
