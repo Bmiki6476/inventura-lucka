@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "71a6cac12f";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "6619d63169";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -350,6 +350,12 @@ td.r,th.r{text-align:right;white-space:nowrap}
       <div class="qr" id="qr" hidden></div>
       <label class="toggle" style="margin-top:12px"><input type="checkbox" id="slepaSklad"> Slepá inventúra – skladníci nevidia účtovné množstvá</label>
       <p class="note">Ceny a hodnoty skladníkom server neposiela nikdy. Kód skladníka zmeníte v Google tabuľke v hárku Nastavenia (napr. po skončení inventúry).</p>
+    </div>
+    <div class="card admin-only">
+      <h3>Report e-mailom</h3>
+      <dl class="dl" id="reportInfo"></dl>
+      <div class="actions" style="margin-top:12px"><button class="btn pri" id="reportBtn" type="button">Poslať report</button></div>
+      <p class="note">Report = súpis zápisov od posledného reportu (počty, poznámky, naskenované výdajníky); keď nič nepribudlo, pošle sa celý doterajší súpis. Odchádza z Outlooka na PC v kancelárii – do 10 minút, ak je PC zapnuté. Príjemcov zmeníte v Google tabuľke v hárku Nastavenia (MAIL_KOMU).</p>
     </div>
     <div class="card admin-only">
       <h3>Register výdajníkov zo SPIN</h3>
@@ -1184,6 +1190,7 @@ function vykresliData(){
   $('#vydRegInfo').innerHTML = regN ? `<dt>Súbor</dt><dd>${esc(m.vydSubor || '')}</dd><dt>Nahraté</dt><dd>${esc(m.vydNahrate || '')}</dd><dt>Výdajníkov</dt><dd>${regN}</dd>
     <dt>Naskenovaných</dt><dd>${Object.keys(V.naVc).length}</dd>` : '<dt>Register</dt><dd>zatiaľ nenahratý</dd>';
   $('#slepaSklad').checked = !!m.slepaSklad;
+  vykresliReport();
   $('#pozvanka').innerHTML = `<dt>Odkaz</dt><dd>${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.url)}</a>` : 'aplikácia ešte nie je nasadená'}</dd><dt>Kód skladníka</dt><dd class="pin">${esc(m.pinSklad || '')}</dd>
     ${m.tabulka ? `<dt>Databáza</dt><dd><a href="${esc(m.tabulka)}" target="_blank" rel="noopener">Google tabuľka</a></dd>` : ''}`;
   const qr = $('#qr');
@@ -1725,6 +1732,27 @@ $('#syncTerazBtn').addEventListener('click', () => sync());
 $('#ktoInput').addEventListener('input', e => { C.kto = e.target.value.trim(); ulozConf(); obnovHlavicku(); });
 $('#odhlasBtn').addEventListener('click', () => odhlas(false));
 $('#stavKInput').addEventListener('change', async e => { try { SRV.meta = Object.assign(SRV.meta, await api('nastavAdmin', C.pin, {stavK:e.target.value.trim()})); ulozCache(); toast('Uložené'); } catch(err) { toast('Neuložilo sa: ' + err.message); } });
+function vykresliReport(){
+  const r = SRV && SRV.meta && SRV.meta.mail, el = $('#reportInfo'); if (!el || !r) return;
+  const cas = s => s ? fmtCas(String(s).split('|')[0]) : '';
+  const vysl = String(r.vysledok || '').split('|');
+  el.innerHTML = `<dt>Odchádza z</dt><dd>${esc(r.od)} (Outlook na PC)</dd>
+    <dt>Príjemcovia</dt><dd>${String(r.komu || '').split(',').map(a => a.trim()).filter(Boolean).map(esc).join('<br>') || '<span class="muted">nie sú nastavení</span>'}</dd>
+    <dt>Denný report</dt><dd>${r.posielat ? 'zapnutý, okolo ' + r.hodina + ':00' : 'vypnutý (len tlačidlom)'}</dd>
+    <dt>Naposledy</dt><dd>${r.posledne ? esc(cas(r.posledne)) : '—'}${vysl[1] ? '<div class="muted small">' + esc(cas(vysl[0]) + ' – ' + vysl[1]) + '</div>' : ''}</dd>
+    ${r.ziadost ? `<dt>Čaká</dt><dd><b>report sa odosiela</b> (žiadosť ${esc(cas(r.ziadost))}${r.ziadost.split('|')[1] ? ', ' + esc(r.ziadost.split('|')[1]) : ''})</dd>` : ''}`;
+  $('#reportBtn').textContent = r.ziadost ? 'Report sa odosiela…' : 'Poslať report';
+}
+$('#reportBtn').addEventListener('click', async e => {
+  const r = SRV.meta.mail || {};
+  if (r.ziadost) { toast('Report už čaká na odoslanie – odíde do 10 minút, ak je PC v kancelárii zapnuté.', 4000); return; }
+  if (!confirm('Poslať report teraz?\n\nZ: ' + r.od + '\nKomu: ' + (r.komu || '—'))) return;
+  e.target.disabled = true;
+  try { SRV.meta = Object.assign(SRV.meta, await api('nastavAdmin', C.pin, {poslatReport:true, kto:C.kto})); ulozCache(); vykresliReport();
+    toast('Report odíde do 10 minút (z Outlooka na PC v kancelárii).', 4500); }
+  catch(err) { toast('Nepodarilo sa: ' + err.message, 4500); }
+  finally { e.target.disabled = false; }
+});
 $('#slepaSklad').addEventListener('change', async e => {
   try { SRV.meta = Object.assign(SRV.meta, await api('nastavAdmin', C.pin, {slepa:e.target.checked})); ulozCache(); toast(e.target.checked ? 'Skladníci nevidia účtovné množstvá' : 'Skladníci vidia účtovné množstvá'); }
   catch(err) { e.target.checked = !e.target.checked; toast('Neuložilo sa: ' + err.message); }
