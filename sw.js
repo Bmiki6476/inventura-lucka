@@ -1,7 +1,7 @@
-// Service worker Inventúra Lucka – verzia 19a832f3e0
+// Service worker Inventúra Lucka – verzia 21a6afc09c
 // Stránka: najprv sieť (nová verzia hneď), bez signálu z pamäte. Knižnice a ikony: z pamäte.
 // Volania servera (script.google.com) sa NIKDY neukladajú – offline fronta zmien je v appke.
-const CACHE = 'inventura-19a832f3e0';
+const CACHE = 'inventura-21a6afc09c';
 const ZAKLAD = ['./', 'index.html', 'manifest.webmanifest', 'ikona-192.png', 'ikona-512.png', 'apple-touch-icon.png', 'favicon-32.png'];
 const KNIZNICE = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ZAKLAD)).then(() => self.skipWaiting())); });

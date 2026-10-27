@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "19a832f3e0";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "21a6afc09c";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -346,6 +346,7 @@ td.r,th.r{text-align:right;white-space:nowrap}
       <h3>Kto počíta</h3>
       <input type="text" id="ktoInput" placeholder="Meno a priezvisko" autocomplete="name">
       <p class="note" id="rolaInfo"></p>
+      <label class="toggle" style="margin-bottom:12px"><input type="checkbox" id="zvukSken"> Pípnuť pri naskenovaní</label>
       <button class="btn small" id="odhlasBtn" type="button">Odhlásiť z tohto mobilu</button>
     </div>
     <div class="card">
@@ -1005,6 +1006,36 @@ function obrazok(subor){
   if (window.createImageBitmap) return createImageBitmap(subor);
   return new Promise((ok, ko) => { const i = new Image(), u = URL.createObjectURL(subor); i.onload = () => { URL.revokeObjectURL(u); ok(i); }; i.onerror = () => ko(new Error('Fotka sa nedá otvoriť.')); i.src = u; });
 }
+/* Pípnutie + vibrácia po skenovaní: ok = vysoké pípnutie, pozor = dve pípnutia, uz = krátky nízky tón, chyba = hlboký bzučiak.
+   Zvuk tvorí prehliadač (Web Audio), netreba súbor. iPhone ho pustí až po ťuknutí, preto sa odomkne pri prvom dotyku. */
+let zvukCtx = null;
+function odomkniZvuk(){
+  try {
+    if (!zvukCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; zvukCtx = new AC(); }
+    if (zvukCtx.state === 'suspended') zvukCtx.resume();
+  } catch(e) {}
+}
+['pointerdown', 'touchend', 'click', 'keydown'].forEach(u => document.addEventListener(u, odomkniZvuk, true));
+const TONY = {ok:[[2400, .13]], pozor:[[1300, .12], [0, .07], [1300, .12]], uz:[[650, .12]], chyba:[[260, .4]]};
+const VIBRACIE = {ok:70, pozor:[60, 60, 60], uz:40, chyba:[150, 80, 150]};
+function signal(druh){
+  try { if (navigator.vibrate) navigator.vibrate(VIBRACIE[druh]); } catch(e) {}
+  if (C.zvuk === false || !zvukCtx) return;
+  try {
+    let t = zvukCtx.currentTime + .01;
+    for (const [f, d] of TONY[druh]) {
+      if (f) {
+        const o = zvukCtx.createOscillator(), g = zvukCtx.createGain();
+        o.type = 'square'; o.frequency.value = f;
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.35, t + .01);
+        g.gain.setValueAtTime(.35, t + d - .02); g.gain.linearRampToValueAtTime(0, t + d);
+        o.connect(g); g.connect(zvukCtx.destination); o.start(t); o.stop(t + d + .01);
+      }
+      t += d;
+    }
+  } catch(e) {}
+}
+
 let skenStream = null, skenBezi = false, skenCiel = null;
 /** Živá kamera ide len mimo rámčeka Google (lokálny test) alebo tam, kde ju rámček výslovne povolí. Inak sa skenuje fotkou. */
 const ZIVA_KAMERA = (() => {
@@ -1048,9 +1079,10 @@ async function spustiSken(ciel){
           const t = upravVc(k.rawValue);
           if (t && (t !== posledne || Date.now() - kedy > 3000)) {
             posledne = t; kedy = Date.now();
-            if (kodVyrobku(k.format)) { $('#scanMsg').textContent = 'EAN výrobku preskočený – namierte na QR alebo „serial no“'; continue; }
+            if (kodVyrobku(k.format)) { $('#scanMsg').textContent = 'EAN výrobku preskočený – namierte na QR alebo „serial no“'; signal('chyba'); continue; }
             if (skenCiel) { $('#scanMsg').textContent = skenCiel(k.rawValue); continue; }
-            if (pridajVc(t)) { $('#scanMsg').textContent = 'Pridané: ' + t + ' (spolu ' + (udaj(otvorene).vc || []).length + ')'; if (navigator.vibrate) navigator.vibrate(80); }
+            if (pridajVc(t)) { $('#scanMsg').textContent = 'Pridané: ' + t + ' (spolu ' + (udaj(otvorene).vc || []).length + ')'; signal('ok'); }
+            else signal('uz');
           }
         }
       } catch(e) {}
@@ -1068,20 +1100,21 @@ async function kodZFotky(subor){
     const vsetky = await det.detect(await obrazok(subor));
     const kody = vsetky.filter(k => !kodVyrobku(k.format));
     if (vOkne) {
-      if (!kody.length) { $('#scanMsg').textContent = vsetky.length ? 'Na fotke je len EAN výrobku – odfoťte QR alebo „serial no“.' : 'Na fotke som nenašiel kód – odfoťte ho bližšie a ostrejšie.'; return; }
+      if (!kody.length) { signal('chyba'); $('#scanMsg').textContent = vsetky.length ? 'Na fotke je len EAN výrobku – odfoťte QR alebo „serial no“.' : 'Na fotke som nenašiel kód – odfoťte ho bližšie a ostrejšie.'; return; }
       kody.sort((a, b) => (b.format === 'qr_code') - (a.format === 'qr_code'));
       if (skenCiel) $('#scanMsg').textContent = skenCiel(kody[0].rawValue);
-      else { const t = upravVc(kody[0].rawValue); $('#scanMsg').textContent = pridajVc(t) ? 'Pridané: ' + t + ' (spolu ' + (udaj(otvorene).vc || []).length + ')' : t + ' – už je zapísané'; }
+      else { const t = upravVc(kody[0].rawValue), ok = pridajVc(t); signal(ok ? 'ok' : 'uz'); $('#scanMsg').textContent = ok ? 'Pridané: ' + t + ' (spolu ' + (udaj(otvorene).vc || []).length + ')' : t + ' – už je zapísané'; }
       $('#scanFotoBtn').textContent = 'Odfotiť ďalší kód';
       return;
     }
-    if (!kody.length) { toast(vsetky.length ? 'Na fotke je len EAN výrobku – odfoťte QR alebo „serial no“.' : 'Na fotke som nenašiel kód – skúste bližšie a ostrejšie.', 3000); return; }
+    if (!kody.length) { signal('chyba'); toast(vsetky.length ? 'Na fotke je len EAN výrobku – odfoťte QR alebo „serial no“.' : 'Na fotke som nenašiel kód – skúste bližšie a ostrejšie.', 3000); return; }
     // QR aj výrobný štítok na jednej fotke = jeden kus; QR ide prvý, lebo nesie aj evidenčné číslo
     kody.sort((a, b) => (b.format === 'qr_code') - (a.format === 'qr_code'));
     if (fotkaCiel) { const f = fotkaCiel; fotkaCiel = null; toast(f(kody[0].rawValue), 4000); return; }
     const pridane = kody.map(k => upravVc(k.rawValue)).filter(t => pridajVc(t));
+    signal(pridane.length ? 'ok' : 'uz');
     if (pridane.length) toast('Pridané: ' + pridane.join(', '));
-  } catch(e) { toast('Kód sa nedá prečítať: ' + e.message); }
+  } catch(e) { signal('chyba'); toast('Kód sa nedá prečítať: ' + e.message); }
 }
 let fotkaCiel = null;
 async function zmensi(subor, max){
@@ -1286,6 +1319,7 @@ function vykresliSyncInfo(){
 }
 function vykresliData(){
   if (document.activeElement !== $('#ktoInput')) $('#ktoInput').value = C.kto || '';
+  $('#zvukSken').checked = C.zvuk !== false;
   $('#rolaInfo').textContent = SRV ? (jeAdmin() ? 'Prihlásený ako správca – vidíte ceny, rozdiely a výstupy.' : 'Prihlásený ako skladník.') + ' Meno sa zapisuje ku každému počtu.' : '';
   vykresliSyncInfo();
   if (!jeAdmin()) return;
@@ -1535,14 +1569,14 @@ function zhoda(v, lok){
 function zapisNalez(text, lok){
   lok = lok ?? vLok();
   const r = najdiVydajnik(text);
-  if (r.kusy.length > 1) return 'Viac kusov s číslom ' + r.id + ' – naskenujte QR kód s výrobným číslom.';
+  if (r.kusy.length > 1) { signal('chyba'); return 'Viac kusov s číslom ' + r.id + ' – naskenujte QR kód s výrobným číslom.'; }
   const v = r.kusy[0], vc = v ? v.vc : r.id;
   if (!vc) return '';
   const uz = nalezyVc(vc);
-  if (uz.some(n => n.lok === lok)) { zobrazPosledny(vc, {k:'info', t:'Už je naskenovaný na tomto mieste (' + (lok || 'bez miesta') + ')'}); return vc + ' – už naskenovaný tu'; }
+  if (uz.some(n => n.lok === lok)) { signal('uz'); zobrazPosledny(vc, {k:'info', t:'Už je naskenovaný na tomto mieste (' + (lok || 'bez miesta') + ')'}); return vc + ' – už naskenovaný tu'; }
   zmen({t:'nalez', lineId:noveId('N'), vc, lok});
-  if (navigator.vibrate) navigator.vibrate(uz.length ? [60, 60, 60] : 70);
   const z = uz.length ? {k:'warn', t:'Pozor: už bol naskenovaný aj inde – ' + uz.map(n => (n.lok || 'bez miesta') + ' (' + (n.kto || '') + ')').join(', ')} : zhoda(v, lok);
+  signal(z.k === 'warn' ? 'pozor' : 'ok');
   const k = kartaKusu(vc);
   z.karta = k ? '→ ' + textKarty(vc) : '';
   zobrazPosledny(vc, z);
@@ -1836,6 +1870,7 @@ $('#whoBtn').addEventListener('click', () => prepniTab('data'));
 $('#syncBtn').addEventListener('click', () => { sync(); prepniTab('data'); });
 $('#syncTerazBtn').addEventListener('click', () => sync());
 $('#ktoInput').addEventListener('input', e => { C.kto = e.target.value.trim(); ulozConf(); obnovHlavicku(); });
+$('#zvukSken').addEventListener('change', e => { C.zvuk = e.target.checked; ulozConf(); if (C.zvuk) { odomkniZvuk(); signal('ok'); } });
 $('#odhlasBtn').addEventListener('click', () => odhlas(false));
 $('#stavKInput').addEventListener('change', async e => { try { SRV.meta = Object.assign(SRV.meta, await api('nastavAdmin', C.pin, {stavK:e.target.value.trim()})); ulozCache(); toast('Uložené'); } catch(err) { toast('Neuložilo sa: ' + err.message); } });
 function vykresliReport(){
