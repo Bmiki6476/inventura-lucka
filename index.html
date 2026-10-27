@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "6619d63169";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "a0d3ad3de6";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -174,6 +174,17 @@ td.r,th.r{text-align:right;white-space:nowrap}
 .foto{position:fixed;inset:0;z-index:65;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:16px}
 .foto.on{display:flex}
 .foto img{max-width:100%;max-height:100%;border-radius:8px}
+/* povinná fotka nájdenej veci (formulár Nájdená vec navyše) */
+.nfotky{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.nfotky .nf{position:relative;width:92px;height:92px;flex:none}
+.nfotky img{width:100%;height:100%;object-fit:cover;border-radius:10px;border:1px solid var(--line);display:block}
+.nfotky .nf button{position:absolute;top:-7px;right:-7px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--chip);line-height:1}
+.fotobtn{width:100%;min-height:56px;border:1px dashed var(--accent);background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;gap:8px}
+.fotobtn svg{width:22px;height:22px;flex:none}
+.fotobtn + .note{margin-top:6px}
+.fld.chyba label{color:var(--bad)}
+.fld.chyba .fotobtn{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.serial.cak{border-style:dashed}
 .login{position:fixed;inset:0;z-index:80;background:var(--bg);display:none;align-items:center;justify-content:center;padding:16px}
 .login.on{display:flex}
 .login .card{width:100%;max-width:400px;display:grid;gap:12px;margin:0}
@@ -405,6 +416,7 @@ td.r,th.r{text-align:right;white-space:nowrap}
 <div class="scan" id="scan"><video id="scanVideo" playsinline muted></video><div class="bar2"><div class="info">Ťuknite na <b>Odfotiť kód</b> – otvorí sa fotoaparát. Odfoťte QR štítok zblízka a potvrďte fotku.</div><div class="msg" id="scanMsg">Namierte na čiarový alebo QR kód</div><button class="btn small" id="scanStop" type="button">Hotovo</button><button class="btn pri" id="scanFotoBtn" type="button">Odfotiť kód</button></div></div>
 <div class="foto" id="foto"><img id="fotoImg" alt="Fotka položky"></div>
 <input type="file" id="fotoVstup" accept="image/*" capture="environment" hidden>
+<input type="file" id="nFotoVstup" accept="image/*" capture="environment" hidden>
 <input type="file" id="skenVstup" accept="image/*" capture="environment" hidden>
 <div class="toast" id="toast"></div>
 <div id="tlac"></div>
@@ -489,6 +501,7 @@ let C = Object.assign({pin:'', kto:'', filtre:{}}, nacitajLS(K_CONF, {}));
 C.filtre = Object.assign({sklad:'__luka', skupina:'', stav:'', slepa:false, hladaj:''}, C.filtre || {});
 let SRV = nacitajLS(K_CACHE, null);
 let OUT = nacitajLS(K_OUT, []);
+let FOTO_OUT = [];   // fotky čakajúce na odoslanie – načítajú sa z IndexedDB (pozri fotoDb)
 let V = null, POLOZKY = [], MAPA = {};
 let poslednaSync = null, online = null;
 
@@ -592,6 +605,7 @@ async function sync(){
       ulozOut();
       if (OUT.length) syncZnova = true;
     }
+    await odosliFotky();
     const r = await api('zmeny', C.pin, SRV.rev, SRV.meta.verzia);
     if (r.reload) { await nacitajVsetko(); toast('Zoznam majetku bol aktualizovaný'); }
     else {
@@ -616,10 +630,10 @@ async function sync(){
   }
 }
 function obnovSyncStav(){
-  const b = $('#syncBtn'), t = $('#syncTxt');
+  const b = $('#syncBtn'), t = $('#syncTxt'), n = OUT.length + FOTO_OUT.length;
   b.classList.remove('cak','off');
-  if (online === false) { b.classList.add('off'); t.textContent = OUT.length ? `Offline · ${OUT.length} čaká` : 'Offline'; }
-  else if (OUT.length) { b.classList.add('cak'); t.textContent = `Odosiela ${OUT.length}`; }
+  if (online === false) { b.classList.add('off'); t.textContent = n ? `Offline · ${n} čaká` : 'Offline'; }
+  else if (n) { b.classList.add('cak'); t.textContent = `Odosiela ${n}`; }
   else t.textContent = syncBezi && !poslednaSync ? 'Načítava…' : 'Uložené';
   if (aktTab === 'data') vykresliSyncInfo();
 }
@@ -646,10 +660,10 @@ $('#loginForm').addEventListener('submit', async e => {
   } finally { $('#lBtn').disabled = false; }
 });
 function odhlas(vynutene){
-  if (!vynutene && OUT.length && !confirm(`V mobile čaká ${OUT.length} neodoslaných zmien. Po odhlásení sa stratia. Odhlásiť aj tak?`)) return;
+  if (!vynutene && (OUT.length || FOTO_OUT.length) && !confirm(`V mobile čaká ${OUT.length} neodoslaných zmien${FOTO_OUT.length ? ' a ' + FOTO_OUT.length + ' fotiek' : ''}. Po odhlásení sa stratia. Odhlásiť aj tak?`)) return;
   C.pin = ''; ulozConf();
   // pri vynútenom odhlásení (zmenený kód) čakajúce zmeny ostanú a odošlú sa po novom prihlásení
-  if (!vynutene) { OUT = []; ulozOut(); }
+  if (!vynutene) { OUT = []; ulozOut(); FOTO_OUT.forEach(f => fotoUloz(f, true)); FOTO_OUT = []; }
   else if (OUT.length) toast(`V mobile čaká ${OUT.length} neodoslaných zmien – po prihlásení sa odošlú.`, 5000);
   SRV = null; ulozCache(); obnovView();
   document.body.classList.remove('admin');
@@ -824,12 +838,12 @@ function vykresliSupis(){
   $('#zoznam').innerHTML = html;
 }
 function riadokHtml(p){
-  const u = udaj(p.id), rr = pocty(p.id), n = napocitane(p);
+  const u = udaj(p.id), rr = pocty(p.id), n = napocitane(p), fotiek = (u.fotky || []).length + cakajuceFotky(p.id).length;
   const lok = [...new Set(rr.map(r => r.lok).filter(Boolean))];
   const sub = [p.typ === 'majetok' ? 'Inv. č. ' + p.kod : p.typ === 'zasoba' ? 'Kód ' + p.kod : 'Nájdené navyše',
     C.filtre.sklad === '__vse' || C.filtre.sklad === '__luka' ? (p.typ === 'zasoba' ? p.sklad.replace(/^\d+-/, '') : '') : '',
     lok.length ? '→ ' + lok.join(', ') : '', (u.vc || []).length ? (u.vc.length + ' výr. č.') : '', poskodene(p) ? poskodene(p) + ' poškodených' : '',
-    (u.fotky || []).length ? (u.fotky.length + ' foto') : ''].filter(Boolean).join(' · ');
+    fotiek ? fotiek + ' foto' : p.typ === 'navyse' && !p.virt ? 'bez fotky' : ''].filter(Boolean).join(' · ');
   const ocak = slepa() || p.typ === 'navyse' || p.mn == null ? '' : `<div class="e">z ${fmtN(p.mn)} ${esc(p.mj)}</div>`;
   return `<button class="item" data-id="${esc(p.id)}" type="button"><div class="main"><div class="name">${esc(p.nazov)}</div><div class="sub">${esc(sub)}</div></div>
     <div class="qty"><div class="n">${n == null ? '—' : fmtN(n)}</div>${ocak}<div>${pillHtml(p)}</div></div></button>`;
@@ -926,7 +940,14 @@ function obnovDetail(){
     $('#dVcNote').textContent = nv ? `Zapísaných výrobných čísel: ${nv}${n != null ? ' · napočítaných kusov: ' + fmtN(n) : ''}` : ('BarcodeDetector' in window ? 'Skenovanie číta čiarové aj QR kódy zo štítkov. Ak sa kamera nespustí, použite Odfotiť kód.' : '');
   }
   const fl = $('#dFotky');
-  if (fl) fl.innerHTML = (u.fotky || []).map((f, i) => `<span class="serial" style="font-family:inherit"><button type="button" data-foto-ukaz="${esc(f)}" style="width:auto;padding:0 8px;background:none">Fotka ${i + 1}</button><button type="button" data-foto-zmaz="${esc(f)}" aria-label="Odobrať fotku">×</button></span>`).join('');
+  const nf = (u.fotky || []).length;
+  if (fl) fl.innerHTML = (u.fotky || []).map((f, i) => `<span class="serial" style="font-family:inherit"><button type="button" data-foto-ukaz="${esc(f)}" style="width:auto;padding:0 8px;background:none">Fotka ${i + 1}</button><button type="button" data-foto-zmaz="${esc(f)}" aria-label="Odobrať fotku">×</button></span>`).join('') +
+    cakajuceFotky(otvorene).map((f, i) => `<span class="serial cak" style="font-family:inherit"><button type="button" data-foto-lok="${esc(f.id)}" style="width:auto;padding:0 8px;background:none">Fotka ${nf + i + 1} · čaká na odoslanie</button><button type="button" data-foto-zrus="${esc(f.id)}" aria-label="Zrušiť fotku">×</button></span>`).join('');
+  const fs = $('#dFotkyStav');
+  if (fs && p.typ === 'navyse' && !fs.textContent.endsWith('…')) {
+    fs.textContent = nf || cakajuceFotky(otvorene).length ? '' : 'Nájdená vec ešte nemá fotku – odfoťte ju.';
+    fs.style.color = fs.textContent ? 'var(--warn)' : '';
+  }
   const st = $('#dStav'); if (st) st.innerHTML = pillHtml(p);
   const m = $('#dMeta'); if (m) { const posl = rr.concat(u.cas ? [u] : []).sort((a, b) => String(b.cas).localeCompare(String(a.cas)))[0]; m.textContent = posl ? `Naposledy: ${posl.kto || 'bez mena'}, ${fmtCas(posl.cas)}` : ''; }
 }
@@ -1054,14 +1075,57 @@ async function zmensi(subor, max){
 }
 async function nahrajFotku(subor){
   const id = otvorene; if (!id) return;
-  const st = $('#dFotkyStav'); if (st) st.textContent = 'Nahrávam…';
+  const st = $('#dFotkyStav'); if (st) st.textContent = 'Spracúvam…';
   try {
-    const b64 = await zmensi(subor, 1600);
-    await api('foto', C.pin, id, b64, C.kto || '');
+    await zaradFotku(id, await zmensi(subor, 1600));
     if (st) st.textContent = '';
-    toast('Fotka uložená'); sync();
-  } catch(e) { if (st) st.textContent = ''; toast(/Failed|Network/i.test(e.message) ? 'Fotka sa dá nahrať len so signálom.' : 'Fotka sa neuložila: ' + e.message, 3500); }
+    toast(online === false ? 'Fotka je v mobile – odošle sa, keď bude signál.' : 'Fotka sa odosiela…');
+  } catch(e) { if (st) st.textContent = ''; toast('Fotka sa nedá spracovať: ' + e.message, 3500); }
 }
+
+/* Fotky čakajúce na odoslanie: najprv sa uložia v mobile (IndexedDB – do localStorage by sa nezmestili),
+   na Disk Google odídu pri synchronizácii, keď je signál. Fotka nájdenej veci ide až po jej zápise, aby na Disku mala jej názov. */
+const fotoDb = new Promise(ok => {
+  try {
+    const r = indexedDB.open('inv-lucka-fotky', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('fotky', {keyPath:'id'});
+    r.onsuccess = () => ok(r.result); r.onerror = () => ok(null);
+  } catch(e) { ok(null); }
+});
+async function fotoUloz(f, zmaz){
+  const db = await fotoDb; if (!db) return false;
+  return new Promise(ok => {
+    try { const tx = db.transaction('fotky', 'readwrite'), s = tx.objectStore('fotky'); if (zmaz) s.delete(f.id); else s.put(f); tx.oncomplete = () => ok(true); tx.onerror = tx.onabort = () => ok(false); }
+    catch(e) { ok(false); }
+  });
+}
+fotoDb.then(db => !db ? [] : new Promise(ok => {
+  try { const r = db.transaction('fotky').objectStore('fotky').getAll(); r.onsuccess = () => ok(r.result || []); r.onerror = () => ok([]); } catch(e) { ok([]); }
+})).then(ulozene => {
+  if (!ulozene.length) return;
+  FOTO_OUT = ulozene.filter(f => !FOTO_OUT.some(x => x.id === f.id)).concat(FOTO_OUT).sort((a, b) => String(a.cas).localeCompare(String(b.cas)));
+  obnovSyncStav(); obnovDetail(); sync();
+});
+async function zaradFotku(itemId, b64){
+  const f = {id:noveId('F'), itemId, b64, kto:C.kto || '', cas:new Date().toISOString()};
+  FOTO_OUT.push(f);
+  if (!await fotoUloz(f) && !zaradFotku.chyba) { toast('Mobil fotku neuloží – nezatvárajte appku, kým sa neodošle.', 4000); zaradFotku.chyba = true; }
+  obnovSyncStav(); obnovDetail();
+  clearTimeout(zmen.t); zmen.t = setTimeout(sync, 300);
+}
+async function odosliFotky(){
+  for (const f of FOTO_OUT.slice()) {
+    if (OUT.some(o => o.t === 'navyse' && o.id === f.itemId)) continue;   // vec ešte nie je na serveri
+    try { await api('foto', C.pin, f.itemId, f.b64, f.kto); }
+    catch(e) {
+      if (jeChybaKodu(e) || /Network|spojenie/i.test(e.message)) throw e;
+      if (!f.hlasena) { f.hlasena = true; toast('Fotka sa neuložila: ' + e.message + ' – skúsi sa znova.', 4000); }
+      continue;
+    }
+    FOTO_OUT = FOTO_OUT.filter(x => x.id !== f.id); fotoUloz(f, true); obnovSyncStav();
+  }
+}
+const cakajuceFotky = id => FOTO_OUT.filter(f => f.itemId === id);
 const fotkyCache = {};
 async function ukazFotku(id){
   try {
@@ -1072,27 +1136,51 @@ async function ukazFotku(id){
 }
 
 /* ---------- pridanie nájdenej veci ---------- */
+const IKONA_FOTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+let nFotky = [];   // fotky vo formulári (JPEG base64), do fronty idú až po Pridať
 function otvorPridanie(){
-  otvorene = null;
+  otvorene = null; nFotky = [];
   $('#sheet').innerHTML = `<div class="hd"><div><h2>Nájdená vec navyše</h2><div class="sub">Fyzicky je, ale v zozname od VODAXu nie je</div></div><button class="x" data-zavriet type="button">×</button></div>
   <div class="bd"><div class="fld"><label for="nNazov">Názov</label><input type="text" id="nNazov" placeholder="napr. Výdajník HC 66L biely"></div>
+  <div class="fld" id="nFotoFld"><label>Fotka – povinná</label><div class="nfotky" id="nFotky" hidden></div>
+    <button class="btn fotobtn" type="button" id="nFotoBtn" data-n-foto></button>
+    <div class="note">Odfoťte celú vec, prípadne aj jej štítok s číslom. Bez signálu sa fotka odošle neskôr sama.</div></div>
   <div class="fld"><label for="nSkup">Skupina</label><select id="nSkup">${SKUPINY.map(s => `<option${s === (C.filtre.skupina || 'Ostatné') ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
   <div class="grid2"><div class="fld"><label for="nMn">Množstvo</label><input type="number" inputmode="decimal" id="nMn" value="1"></div><div class="fld"><label for="nMj">Jednotka</label><input type="text" id="nMj" value="ks"></div></div>
   <div class="fld"><label for="nLok">Kde to je</label><input type="text" id="nLok" list="lokacie" value="${esc(poslLok)}"></div>
   <div class="fld"><label for="nPozn">Poznámka</label><textarea id="nPozn"></textarea></div></div>
   <div class="ft"><span></span><button class="btn pri" type="button" id="nUloz">Pridať</button></div>`;
   $('#modal').classList.add('on');
+  vykresliNFotky();
   setTimeout(() => $('#nNazov').focus(), 50);
+}
+function vykresliNFotky(){
+  const el = $('#nFotky'); if (!el) return;
+  el.innerHTML = nFotky.map((b, i) => `<div class="nf"><img src="data:image/jpeg;base64,${b}" alt="Fotka ${i + 1}"><button type="button" data-n-foto-zmaz="${i}" aria-label="Odobrať fotku">×</button></div>`).join('');
+  el.hidden = !nFotky.length;
+  $('#nFotoBtn').innerHTML = IKONA_FOTO + (nFotky.length ? 'Pridať ďalšiu fotku' : 'Odfotiť nájdenú vec');
+}
+async function pridajNFotku(subor){
+  try {
+    nFotky.push(await zmensi(subor, 1600));
+    const f = $('#nFotoFld'); if (f) f.classList.remove('chyba');
+    vykresliNFotky();
+  } catch(e) { toast('Fotka sa nedá spracovať: ' + e.message, 3500); }
 }
 function ulozPridanie(){
   const nazov = $('#nNazov').value.trim(); if (!nazov) { toast('Doplňte názov'); return; }
+  if (!nFotky.length) {
+    const f = $('#nFotoFld'); f.classList.add('chyba'); f.scrollIntoView({block:'center', behavior:'smooth'});
+    toast('Odfoťte nájdenú vec – bez fotky sa nedá pridať.', 3000); return;
+  }
   const id = noveId('X-');
   zmen({t:'navyse', id, nazov, skupina:$('#nSkup').value, mj:$('#nMj').value.trim() || 'ks'});
   const mn = num($('#nMn').value);
   if (mn != null) zmen({t:'pocet', lineId:noveId('L'), itemId:id, mn, pok:null, lok:$('#nLok').value.trim()});
   const pozn = $('#nPozn').value.trim();
   if (pozn) zmen({t:'udaj', itemId:id, patch:{pozn}});
-  toast('Pridané');
+  nFotky.forEach(b => zaradFotku(id, b)); nFotky = [];
+  toast(online === false ? 'Pridané – fotka sa odošle, keď bude signál.' : 'Pridané', 3000);
   zavriDetail();
 }
 
@@ -1175,7 +1263,7 @@ function vykresliBarely(){
 /* ---------- nastavenia ---------- */
 function vykresliSyncInfo(){
   $('#syncInfo').innerHTML = `<dt>Spojenie</dt><dd>${online === false ? 'bez spojenia' : online ? 'v poriadku' : '…'}</dd>
-    <dt>Čaká na odoslanie</dt><dd>${OUT.length} ${OUT.length === 1 ? 'zmena' : OUT.length >= 2 && OUT.length <= 4 ? 'zmeny' : 'zmien'}</dd>
+    <dt>Čaká na odoslanie</dt><dd>${OUT.length} ${OUT.length === 1 ? 'zmena' : OUT.length >= 2 && OUT.length <= 4 ? 'zmeny' : 'zmien'}${FOTO_OUT.length ? ` · ${FOTO_OUT.length} ${FOTO_OUT.length === 1 ? 'fotka' : FOTO_OUT.length <= 4 ? 'fotky' : 'fotiek'}` : ''}</dd>
     <dt>Naposledy</dt><dd>${poslednaSync ? poslednaSync.toLocaleTimeString('sk-SK') : '—'}</dd>`;
 }
 function vykresliData(){
@@ -1676,7 +1764,7 @@ function vykresliDomov(){
     dlazdica('pocitat', 'Počítať majetok', `${spoc} z ${rozsah.length} spočítaných`, 'supis'),
     dlazdica('chyba', 'Čo ešte chýba', `${rozsah.length - spoc} nespočítaných`, 'nespocitane'),
     dlazdica('vyd', 'Skenovať výdajníky', vydKusov ? `${vydKusov} naskenovaných kusov` : 'QR kód na každom kuse', 'vyd'),
-    dlazdica('navyse', 'Nájdené navyše', 'vec, ktorá nie je v zozname', 'navyse')
+    dlazdica('navyse', 'Nájdené navyše', 'vec mimo zoznamu – s fotkou', 'navyse')
   ];
   if (jeAdmin()) T.push(dlazdica('rozdiel', 'Rozdiely a protokol', 'manko, prebytok, Excel', 'prehlad', rozd ? String(rozd) : ''));
   else T.push(dlazdica('prehlad', 'Prehľad', 'koľko je spočítané', 'prehlad'));
@@ -1782,6 +1870,7 @@ $('#scanStop').addEventListener('click', zastavSken);
 $('#scanFotoBtn').addEventListener('click', () => { fotkaCiel = null; $('#skenVstup').value = ''; $('#skenVstup').click(); });
 $('#foto').addEventListener('click', () => $('#foto').classList.remove('on'));
 $('#fotoVstup').addEventListener('change', e => { if (e.target.files[0]) nahrajFotku(e.target.files[0]); e.target.value = ''; });
+$('#nFotoVstup').addEventListener('change', e => { if (e.target.files[0]) pridajNFotku(e.target.files[0]); e.target.value = ''; });
 $('#skenVstup').addEventListener('change', e => { if (e.target.files[0]) kodZFotky(e.target.files[0]); e.target.value = ''; });
 
 // Prehľad → nepriradené kusy jedného modelu naraz ku karte
@@ -1801,6 +1890,8 @@ $('#modal').addEventListener('change', e => {
 $('#modal').addEventListener('click', e => {
   if (e.target === $('#modal') || e.target.closest('[data-zavriet]')) { zavriDetail(); return; }
   if (e.target.id === 'nUloz') { ulozPridanie(); return; }
+  if (e.target.closest('[data-n-foto]')) { $('#nFotoVstup').click(); return; }
+  const nfz = e.target.closest('[data-n-foto-zmaz]'); if (nfz) { nFotky.splice(+nfz.dataset.nFotoZmaz, 1); vykresliNFotky(); return; }
   const nz = e.target.closest('[data-nalez-zrus]');
   if (nz) { const r = V.nalezy[nz.dataset.nalezZrus]; if (r && confirm(`Zrušiť nález ${r.vc} (${r.lok || 'bez miesta'})?`)) { zmen({t:'nalez', lineId:r.lineId, vc:r.vc, lok:r.lok, zmazane:true}); otvorKartuVyd(r.vc); } return; }
   const nt = e.target.closest('[data-nalez-tu]');
@@ -1825,6 +1916,10 @@ $('#modal').addEventListener('click', e => {
   if (e.target.closest('[data-foto]')) { $('#fotoVstup').click(); return; }
   const fu = e.target.closest('[data-foto-ukaz]'); if (fu) { ukazFotku(fu.dataset.fotoUkaz); return; }
   const fz = e.target.closest('[data-foto-zmaz]'); if (fz) { if (confirm('Odobrať fotku z položky? (Na Disku Google zostane.)')) zmen({t:'udaj', itemId:otvorene, fotkyDel:[fz.dataset.fotoZmaz]}); return; }
+  const flk = e.target.closest('[data-foto-lok]');
+  if (flk) { const f = FOTO_OUT.find(x => x.id === flk.dataset.fotoLok); if (f) { $('#fotoImg').src = 'data:image/jpeg;base64,' + f.b64; $('#foto').classList.add('on'); } return; }
+  const fzr = e.target.closest('[data-foto-zrus]');
+  if (fzr) { const f = FOTO_OUT.find(x => x.id === fzr.dataset.fotoZrus); if (f && confirm('Zrušiť túto fotku? Ešte nebola odoslaná.')) { FOTO_OUT = FOTO_OUT.filter(x => x !== f); fotoUloz(f, true); obnovSyncStav(); obnovDetail(); } return; }
   if (e.target.closest('[data-zmazat-navyse]')) {
     if (!confirm('Odstrániť túto nájdenú vec aj s jej počtami?')) return;
     for (const r of pocty(p.id)) zmen({t:'pocet', lineId:r.lineId, itemId:r.itemId, mn:r.mn, pok:r.pok, lok:r.lok, zmazane:true});
