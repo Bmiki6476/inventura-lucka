@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "21a6afc09c";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "6b9931a5b9";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -194,6 +194,8 @@ td.r,th.r{text-align:right;white-space:nowrap}
 .pin{font-family:ui-monospace,Consolas,monospace;font-size:20px;font-weight:650;letter-spacing:.12em}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
 .toast.on{opacity:1}
+.novaverzia{position:fixed;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));z-index:95;background:var(--accent);color:var(--accent-ink);border:0;border-radius:12px;padding:14px;font-weight:650;box-shadow:var(--shadow)}
+.novaverzia[hidden]{display:none}
 .admin-only{display:none} body.admin .admin-only{display:block}
 /* Flex štýl: značka, úvodná obrazovka s dlaždicami */
 .brand{display:flex;align-items:center;gap:8px}
@@ -346,7 +348,8 @@ td.r,th.r{text-align:right;white-space:nowrap}
       <h3>Kto počíta</h3>
       <input type="text" id="ktoInput" placeholder="Meno a priezvisko" autocomplete="name">
       <p class="note" id="rolaInfo"></p>
-      <label class="toggle" style="margin-bottom:12px"><input type="checkbox" id="zvukSken"> Pípnuť pri naskenovaní</label>
+      <div class="row" style="margin-bottom:4px"><label class="toggle" style="flex:1"><input type="checkbox" id="zvukSken"> Pípnuť pri naskenovaní</label><button class="btn small" id="zvukTest" type="button">Vyskúšať zvuk</button></div>
+      <p class="note" id="zvukInfo" style="margin:0 0 12px"></p>
       <button class="btn small" id="odhlasBtn" type="button">Odhlásiť z tohto mobilu</button>
     </div>
     <div class="card">
@@ -420,6 +423,7 @@ td.r,th.r{text-align:right;white-space:nowrap}
 <input type="file" id="nFotoVstup" accept="image/*" capture="environment" hidden>
 <input type="file" id="skenVstup" accept="image/*" capture="environment" hidden>
 <div class="toast" id="toast"></div>
+<button class="novaverzia" id="novaVerzia" type="button" hidden>Je nová verzia appky – ťuknite sem a obnoví sa</button>
 <div id="tlac"></div>
 <datalist id="lokacie"></datalist>
 
@@ -1007,33 +1011,46 @@ function obrazok(subor){
   return new Promise((ok, ko) => { const i = new Image(), u = URL.createObjectURL(subor); i.onload = () => { URL.revokeObjectURL(u); ok(i); }; i.onerror = () => ko(new Error('Fotka sa nedá otvoriť.')); i.src = u; });
 }
 /* Pípnutie + vibrácia po skenovaní: ok = vysoké pípnutie, pozor = dve pípnutia, uz = krátky nízky tón, chyba = hlboký bzučiak.
-   Zvuk tvorí prehliadač (Web Audio), netreba súbor. iPhone ho pustí až po ťuknutí, preto sa odomkne pri prvom dotyku. */
-let zvukCtx = null;
+   Tóny sú krátke WAV vytvorené priamo v appke a hrá ich bežný prehrávač (<audio>) – na iPhone hrá aj v tichom režime
+   (Web Audio tam bolo stlmené), na Androide ide cez hlasitosť médií. Prehliadač pustí zvuk až po ťuknutí, preto sa
+   prehrávač „odomkne“ tichým zvukom pri prvom dotyku. */
+const TONY = {ok:[[2400, .13]], pozor:[[1300, .12], [0, .07], [1300, .12]], uz:[[650, .12]], chyba:[[260, .4]], ticho:[[0, .05]]};
+const VIBRACIE = {ok:70, pozor:[60, 60, 60], uz:40, chyba:[150, 80, 150]};
+function wav(tony){
+  const sr = 22050, n = Math.round(tony.reduce((s, t) => s + t[1], 0) * sr), b = new DataView(new ArrayBuffer(44 + n * 2));
+  const txt = (o, s) => { for (let i = 0; i < s.length; i++) b.setUint8(o + i, s.charCodeAt(i)); };
+  txt(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); txt(8, 'WAVEfmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, sr, true); b.setUint32(28, sr * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); txt(36, 'data'); b.setUint32(40, n * 2, true);
+  let i = 0;
+  for (const [f, d] of tony) {
+    const m = Math.round(d * sr), nab = Math.max(1, Math.min(200, m / 4));   // nábeh a dobeh proti cvaknutiu
+    for (let j = 0; j < m && i < n; j++, i++) {
+      const obal = Math.min(1, j / nab, (m - j) / nab);
+      b.setInt16(44 + i * 2, f ? (Math.sin(2 * Math.PI * f * j / sr) >= 0 ? 1 : -1) * 20000 * obal : 0, true);
+    }
+  }
+  return URL.createObjectURL(new Blob([b], {type:'audio/wav'}));
+}
+const ZVUKY = Object.fromEntries(Object.entries(TONY).map(([k, t]) => [k, wav(t)]));
+const zvukEl = new Audio();
+let zvukOdomknuty = false;
+function hraj(src){
+  zvukEl.pause(); zvukEl.src = src;
+  const p = zvukEl.play();
+  return p && p.then ? p.then(() => { zvukOdomknuty = true; return 'ok'; }) : Promise.resolve('ok');
+}
 function odomkniZvuk(){
-  try {
-    if (!zvukCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; zvukCtx = new AC(); }
-    if (zvukCtx.state === 'suspended') zvukCtx.resume();
-  } catch(e) {}
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e) {}
+  if (zvukOdomknuty || !zvukEl.paused) return;
+  try { hraj(ZVUKY.ticho).catch(() => {}); } catch(e) {}
 }
 ['pointerdown', 'touchend', 'click', 'keydown'].forEach(u => document.addEventListener(u, odomkniZvuk, true));
-const TONY = {ok:[[2400, .13]], pozor:[[1300, .12], [0, .07], [1300, .12]], uz:[[650, .12]], chyba:[[260, .4]]};
-const VIBRACIE = {ok:70, pozor:[60, 60, 60], uz:40, chyba:[150, 80, 150]};
+/** Vráti sľub s výsledkom: 'ok', 'vypnuté' alebo text chyby prehliadača (pre tlačidlo Vyskúšať zvuk). */
 function signal(druh){
   try { if (navigator.vibrate) navigator.vibrate(VIBRACIE[druh]); } catch(e) {}
-  if (C.zvuk === false || !zvukCtx) return;
-  try {
-    let t = zvukCtx.currentTime + .01;
-    for (const [f, d] of TONY[druh]) {
-      if (f) {
-        const o = zvukCtx.createOscillator(), g = zvukCtx.createGain();
-        o.type = 'square'; o.frequency.value = f;
-        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.35, t + .01);
-        g.gain.setValueAtTime(.35, t + d - .02); g.gain.linearRampToValueAtTime(0, t + d);
-        o.connect(g); g.connect(zvukCtx.destination); o.start(t); o.stop(t + d + .01);
-      }
-      t += d;
-    }
-  } catch(e) {}
+  if (C.zvuk === false) return Promise.resolve('vypnuté');
+  try { return hraj(ZVUKY[druh]).catch(e => (e && e.name || 'chyba') + ': ' + (e && e.message || '')); }
+  catch(e) { return Promise.resolve(String(e && e.message || e)); }
 }
 
 let skenStream = null, skenBezi = false, skenCiel = null;
@@ -1315,7 +1332,8 @@ function vykresliBarely(){
 function vykresliSyncInfo(){
   $('#syncInfo').innerHTML = `<dt>Spojenie</dt><dd>${online === false ? 'bez spojenia' : online ? 'v poriadku' : '…'}</dd>
     <dt>Čaká na odoslanie</dt><dd>${OUT.length} ${OUT.length === 1 ? 'zmena' : OUT.length >= 2 && OUT.length <= 4 ? 'zmeny' : 'zmien'}${FOTO_OUT.length ? ` · ${FOTO_OUT.length} ${FOTO_OUT.length === 1 ? 'fotka' : FOTO_OUT.length <= 4 ? 'fotky' : 'fotiek'}` : ''}</dd>
-    <dt>Naposledy</dt><dd>${poslednaSync ? poslednaSync.toLocaleTimeString('sk-SK') : '—'}</dd>`;
+    <dt>Naposledy</dt><dd>${poslednaSync ? poslednaSync.toLocaleTimeString('sk-SK') : '—'}</dd>
+    <dt>Verzia appky</dt><dd>${esc(window.WEB_VERZIA || 'Google')}</dd>`;
 }
 function vykresliData(){
   if (document.activeElement !== $('#ktoInput')) $('#ktoInput').value = C.kto || '';
@@ -1870,7 +1888,12 @@ $('#whoBtn').addEventListener('click', () => prepniTab('data'));
 $('#syncBtn').addEventListener('click', () => { sync(); prepniTab('data'); });
 $('#syncTerazBtn').addEventListener('click', () => sync());
 $('#ktoInput').addEventListener('input', e => { C.kto = e.target.value.trim(); ulozConf(); obnovHlavicku(); });
-$('#zvukSken').addEventListener('change', e => { C.zvuk = e.target.checked; ulozConf(); if (C.zvuk) { odomkniZvuk(); signal('ok'); } });
+$('#zvukSken').addEventListener('change', e => { C.zvuk = e.target.checked; ulozConf(); if (C.zvuk) signal('ok'); });
+$('#zvukTest').addEventListener('click', async () => {
+  const r = await signal('ok');
+  $('#zvukInfo').textContent = r === 'ok' ? 'Pípnutie sa prehralo. Ak ho nepočuť, zvýšte hlasitosť médií (Android) alebo hlasitosť tlačidlami na boku (iPhone/iPad).'
+    : r === 'vypnuté' ? 'Pípanie je vypnuté – zapnite prepínač.' : 'Prehliadač zvuk nepustil (' + r + '). Napíšte to správcovi.';
+});
 $('#odhlasBtn').addEventListener('click', () => odhlas(false));
 $('#stavKInput').addEventListener('change', async e => { try { SRV.meta = Object.assign(SRV.meta, await api('nastavAdmin', C.pin, {stavK:e.target.value.trim()})); ulozCache(); toast('Uložené'); } catch(err) { toast('Neuložilo sa: ' + err.message); } });
 function vykresliReport(){
@@ -1994,6 +2017,15 @@ $('#modal').addEventListener('keydown', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('#scan').classList.contains('on')) zastavSken(); else if ($('#foto').classList.contains('on')) $('#foto').classList.remove('on'); else if ($('#modal').classList.contains('on')) zavriDetail(); } });
 window.addEventListener('load', () => { if (jeAdmin() && aktTab === 'data') vykresliData(); });
+// inštalovaná appka (GitHub Pages) otvorená na pozadí sa sama neobnoví: pri návrate a každých 10 min sa pozrie po novej verzii
+if (window.WEB_VERZIA && 'serviceWorker' in navigator) {
+  const malaSW = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (malaSW) $('#novaVerzia').hidden = false; });
+  const pozriVerziu = () => navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pozriVerziu(); });
+  setInterval(pozriVerziu, 10 * 60000);
+}
+$('#novaVerzia').addEventListener('click', () => location.reload());
 
 /* ---------- štart ---------- */
 obnovView();
