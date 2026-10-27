@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "a0d3ad3de6";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "19a832f3e0";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -642,22 +642,40 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('online', () => sync());
 
 /* ---------- prihlásenie ---------- */
+const jeChybaSiete = e => /Failed|NetworkError|network|Load failed/i.test(e && e.message || '');
+/** Pri chybe spojenia zistí, či ide internet vôbec – firemná Wi-Fi niekedy blokuje servery Google (script.google.com). */
+async function popisChybySpojenia(e){
+  const det = String(e && e.message || '').replace(/^NetworkError:\s*/, '');
+  if (navigator.onLine === false) return 'Zariadenie nie je pripojené na internet – zapnite Wi-Fi alebo mobilné dáta.';
+  let internet = false;
+  try {
+    const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 8000);
+    await fetch('https://www.gstatic.com/generate_204?t=' + Date.now(), {mode:'no-cors', cache:'no-store', signal:ctrl.signal});
+    clearTimeout(t); internet = true;
+  } catch(x) {}
+  return internet ? `Internet ide, ale server appky neodpovedá (${det}). Ak ste na firemnej Wi-Fi, skúste mobilné dáta – sieť môže blokovať Google.`
+    : `Nie je spojenie s internetom (${det}). Skontrolujte Wi-Fi alebo mobilné dáta a správny dátum a čas v zariadení.`;
+}
 function ukazLogin(){ $('#lMeno').value = C.kto || ''; $('#lPin').value = ''; $('#lErr').textContent = ''; $('#login').classList.add('on'); }
 $('#loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   const meno = $('#lMeno').value.trim(), pin = $('#lPin').value.trim();
   if (!meno || !pin) return;
-  $('#lBtn').disabled = true; $('#lErr').textContent = '';
+  const b = $('#lBtn');
+  b.disabled = true; b.textContent = 'Prihlasujem…'; $('#lErr').textContent = '';
+  let kodOk = false;
   try {
     await api('prihlas', pin);
+    kodOk = true; b.textContent = 'Načítavam zoznam…';
     if (SRV && C.pin !== pin) { SRV = null; ulozCache(); }
     C.pin = pin; C.kto = meno; ulozConf();
     await nacitajVsetko();
     $('#login').classList.remove('on');
     sync();
   } catch(err) {
-    $('#lErr').textContent = /Failed|NetworkError|network/i.test(err.message) ? 'Nie je spojenie so serverom. Skúste to so signálom.' : err.message;
-  } finally { $('#lBtn').disabled = false; }
+    const t = jeChybaSiete(err) ? await popisChybySpojenia(err) : err.message;
+    $('#lErr').textContent = kodOk ? 'Kód je správny, ale zoznam sa nenačítal: ' + t : t;
+  } finally { b.disabled = false; b.textContent = 'Prihlásiť'; }
 });
 function odhlas(vynutene){
   if (!vynutene && (OUT.length || FOTO_OUT.length) && !confirm(`V mobile čaká ${OUT.length} neodoslaných zmien${FOTO_OUT.length ? ' a ' + FOTO_OUT.length + ' fotiek' : ''}. Po odhlásení sa stratia. Odhlásiť aj tak?`)) return;
@@ -1945,7 +1963,12 @@ window.addEventListener('load', () => { if (jeAdmin() && aktTab === 'data') vykr
 /* ---------- štart ---------- */
 obnovView();
 if (C.pin && SRV) { nastavRolu(); vykresli(); sync(); }
-else if (C.pin) { vykresli(); nacitajVsetko().then(() => sync()).catch(e => { if (jeChybaKodu(e)) odhlas(true); else { online = false; obnovSyncStav(); toast('Nie je spojenie so serverom.', 3500); } }); }
+else if (C.pin) { vykresli(); nacitajVsetko().then(() => sync()).catch(async e => {
+  if (jeChybaKodu(e)) { odhlas(true); return; }
+  // zoznam ešte nikdy nebol načítaný – ukáže sa prihlásenie s dôvodom, aby sa dalo skúsiť znova
+  online = false; obnovSyncStav(); ukazLogin();
+  $('#lErr').textContent = 'Zoznam sa nenačítal: ' + (jeChybaSiete(e) ? await popisChybySpojenia(e) : e.message);
+}); }
 else { vykresli(); ukazLogin(); }
 </script>
 <script>
