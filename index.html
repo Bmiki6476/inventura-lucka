@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "6b9931a5b9";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "5cdaf84ced";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -312,7 +312,7 @@ td.r,th.r{text-align:right;white-space:nowrap}
     </div>
     <div class="kpis" id="vKpi"></div>
     <div class="chips" id="vChips" style="margin-bottom:10px"></div>
-    <input type="search" id="vHladaj" placeholder="Hľadať výrobné číslo, model, miesto…" style="margin-bottom:10px">
+    <input type="search" id="vHladaj" placeholder="Hľadať výrobné č., evidenčné č. (208/13), model…" style="margin-bottom:10px">
     <div id="vZoznam"></div>
   </section>
 
@@ -1483,20 +1483,23 @@ function tlac(){
 
 /* ---------- výdajníky po kusoch (register zo SPIN + nálezy pri skenovaní) ---------- */
 const SPIN_STAV = {sklad:'Na sklade VODAX', vratene:'Vrátený, sklad nezistený', zakaznik:'U zákazníka', nezname:'Bez dokladu', vyradeny:'Vyradený'};
-let REG = {}, REG_JADRO = {}, REG_ZDROJ = null;
+let REG = {}, REG_JADRO = {}, REG_EV = {}, REG_ZDROJ = null;
 const vcNorm = s => String(s ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
 const vcJadro = s => vcNorm(s).split(' ')[0];
+/** Evidenčné číslo zo štítku (staršie kusy bez čiarového kódu): „208/13“, „208 / 13“, „208-13“, „208/2013“, „69/9“ → ako v registri „208/13“, „69/09“. */
+const evNorm = s => { const m = String(s ?? '').trim().match(/^0*(\d{1,5})\s*[\/\-.\\]\s*(?:20)?(\d{1,2})$/); return m ? m[1] + '/' + m[2].padStart(2, '0') : ''; };
 /** Kľúč modelu na párovanie s účtovníctvom: „Výdajník DK2VHC66L WHITE 2024“ → „dk2vhc66lwhite2024“. */
 const modelKluc = n => norm(n).replace(/v[yý]dajn[ií]k[y]?/g, '').replace(/[^a-z0-9]/g, '');
 function postavRegister(){
   if (!SRV || REG_ZDROJ === SRV.vydRaw) return;
-  REG = {}; REG_JADRO = {};
+  REG = {}; REG_JADRO = {}; REG_EV = {};
   const p = SRV.vydPolia || [];
   for (const a of SRV.vydRaw || []) {
     const o = {}; p.forEach((k, i) => { o[k] = a[i] ?? ''; });
     if (!o.vc) continue;
     REG[o.vc] = o;
     (REG_JADRO[vcJadro(o.vc)] = REG_JADRO[vcJadro(o.vc)] || []).push(o);
+    if (o.ev) (REG_EV[o.ev] = REG_EV[o.ev] || []).push(o);
   }
   REG_ZDROJ = SRV.vydRaw;
 }
@@ -1504,7 +1507,8 @@ function postavRegister(){
 function najdiVydajnik(text){
   const id = vcNorm(text); if (!id) return {id, kusy:[]};
   if (REG[id]) return {id, kusy:[REG[id]]};
-  if (/^\d{1,5}\/\d{2,4}$/.test(id)) return {id, kusy:Object.values(REG).filter(v => v.ev === id)};
+  const ev = evNorm(text);
+  if (ev) return {id:ev, kusy:REG_EV[ev] || []};
   const j = vcJadro(id);
   if (REG_JADRO[j]) return {id, kusy:REG_JADRO[j]};
   if (j.length >= 8) { const k = Object.keys(REG_JADRO).filter(x => x.length >= 8 && (j.endsWith(x) || x.endsWith(j))); if (k.length) return {id, kusy:k.flatMap(x => REG_JADRO[x])}; }
@@ -1652,11 +1656,22 @@ function vykresliVyd(){
   else if (vChip === 'chyba') zoz = s.ocak.filter(v => !s.najdeneSet.has(v.vc)).sort((a, b) => a.spinMiesto.localeCompare(b.spinMiesto, 'sk') || a.vc.localeCompare(b.vc)).map(v => v.vc);
   else if (vChip === 'nezname') zoz = s.nezn.map(v => v.vc);
   else zoz = Object.keys(REG);
-  if (q) zoz = zoz.filter(vc => { const v = REG[vc] || {}; const n = nalezyVc(vc);
+  // evidenčné číslo (aj rozpísané, napr. „208/1“) sa hľadá v celom registri bez ohľadu na zvolený zoznam – kusy bez čiarového kódu
+  const evq = $('#vHladaj').value.replace(/\s+/g, '').replace(/^0+/, '').replace(/[\-.\\]/, '/'), evPresne = evNorm(evq);
+  const hladaEv = /^\d{1,5}\/\d{0,4}$/.test(evq);
+  if (hladaEv) {
+    zoz = Object.keys(REG_EV).filter(e => e === evPresne || e.startsWith(evq)).sort((a, b) => (b === evPresne) - (a === evPresne) || a.localeCompare(b, 'sk', {numeric:true}))
+      .flatMap(e => REG_EV[e].map(v => v.vc));
+    // kus zapísaný len evidenčným číslom, lebo nie je v registri
+    for (const r of Object.values(V.nalezy)) if (!r.zmazane && !REG[r.vc] && (r.vc === evPresne || r.vc.startsWith(evq)) && !zoz.includes(r.vc)) zoz.push(r.vc);
+  } else if (q) zoz = zoz.filter(vc => { const v = REG[vc] || {}; const n = nalezyVc(vc);
     return vc.includes(qv) || v.ev === qv || norm([v.model, v.spinMiesto, v.spinMesto, n.map(x => x.lok + ' ' + x.kto).join(' ')].join(' ')).includes(q); });
-  $('#vZoznam').innerHTML = zoz.length ? `<div class="list">${zoz.slice(0, vLimit).map(vc => vydRiadok(vc)).join('')}</div>` +
+  const evPozn = !hladaEv ? '' : zoz.length
+    ? `<p class="note" style="margin:0 0 8px">Evidenčné číslo ${esc(evPresne || evq)} – hľadá sa v celom registri SPIN (${zoz.length} ${zoz.length === 1 ? 'kus' : zoz.length <= 4 ? 'kusy' : 'kusov'}). Ťuknite na kus a potvrďte <b>Je tu – zapísať nález</b>.</p>`
+    : `<div class="empty-state">V registri SPIN nie je výdajník s evidenčným číslom ${esc(evPresne || evq)}.${evPresne ? `<br><br><button class="btn" type="button" data-ev-zapis="${esc(evPresne)}">Aj tak zapísať ${esc(evPresne)} ako nájdený kus</button>` : ''}</div>`;
+  $('#vZoznam').innerHTML = evPozn + (zoz.length ? `<div class="list">${zoz.slice(0, vLimit).map(vc => vydRiadok(vc)).join('')}</div>` +
     (zoz.length > vLimit ? `<button class="btn addbtn" type="button" data-vviac>Zobraziť ďalších (${zoz.length - vLimit})</button>` : '')
-    : `<div class="empty-state">${vChip === 'naskenovane' ? 'Zatiaľ nič naskenované. Začnite tlačidlom Skenovať výdajníky.' : 'Nič tu nie je.'}</div>`;
+    : hladaEv ? '' : `<div class="empty-state">${vChip === 'naskenovane' ? 'Zatiaľ nič naskenované. Začnite tlačidlom Skenovať výdajníky.' : 'Nič tu nie je.'}</div>`);
 }
 /** Karta výdajníka v štýle Flex Mobility: údaje, servis zo SPIN, nálezy pri inventúre. */
 function otvorKartuVyd(vc){
@@ -1933,12 +1948,23 @@ $('#supisBtn').addEventListener('click', async () => {
 /* výdajníky po kusoch */
 $('#vSkenBtn').addEventListener('click', () => { C.vLok = vLok(); ulozConf(); if (!C.vLok) toast('Tip: vyplňte „Kde skenujem“ – zapíše sa ku každému kusu.', 3500); spustiSken(t => zapisNalez(t)); });
 $('#vLok').addEventListener('change', e => { C.vLok = e.target.value.trim(); ulozConf(); });
-$('#vRucneBtn').addEventListener('click', () => { const i = $('#vRucne'); if (!i.value.trim()) return; C.vLok = vLok(); ulozConf(); toast(zapisNalez(i.value), 3500); i.value = ''; vykresliVyd(); });
+$('#vRucneBtn').addEventListener('click', () => {
+  const i = $('#vRucne'); if (!i.value.trim()) return; C.vLok = vLok(); ulozConf();
+  // viac kusov s rovnakým evidenčným číslom (napr. 86/15) – ukážu sa v zozname a vyberie sa správny podľa modelu
+  const r = najdiVydajnik(i.value);
+  if (r.kusy.length > 1) { signal('pozor'); $('#vHladaj').value = r.id; vLimit = 60; vykresliVyd(); $('#vHladaj').scrollIntoView({block:'start', behavior:'smooth'}); toast(`Číslo ${r.id} má ${r.kusy.length} kusy – ťuknite na správny podľa modelu.`, 4000); i.value = ''; return; }
+  toast(zapisNalez(i.value), 3500); i.value = ''; vykresliVyd();
+});
 $('#vRucne').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#vRucneBtn').click(); } });
 $('#vFotoBtn').addEventListener('click', () => { C.vLok = vLok(); ulozConf(); fotkaCiel = t => { const m = zapisNalez(t); vykresliVyd(); return m; }; $('#skenVstup').value = ''; $('#skenVstup').click(); });
 $('#vHladaj').addEventListener('input', () => { vLimit = 60; vykresliVyd(); });
 $('#vChips').addEventListener('click', e => { const b = e.target.closest('[data-vchip]'); if (b) { vChip = b.dataset.vchip; vLimit = 60; vykresliVyd(); } });
-$('#vZoznam').addEventListener('click', e => { if (e.target.closest('[data-vviac]')) { vLimit += 200; vykresliVyd(); return; } const b = e.target.closest('[data-vyd]'); if (b) otvorKartuVyd(b.dataset.vyd); });
+$('#vZoznam').addEventListener('click', e => {
+  if (e.target.closest('[data-vviac]')) { vLimit += 200; vykresliVyd(); return; }
+  const ez = e.target.closest('[data-ev-zapis]');
+  if (ez) { C.vLok = vLok(); ulozConf(); toast(zapisNalez(ez.dataset.evZapis), 4000); vykresliVyd(); return; }
+  const b = e.target.closest('[data-vyd]'); if (b) otvorKartuVyd(b.dataset.vyd);
+});
 $('#vydRegBtn').addEventListener('click', () => $('#vydReg').click());
 $('#vydReg').addEventListener('change', e => { if (e.target.files[0]) citajRegister(e.target.files[0]); e.target.value = ''; });
 $('#kontroly').addEventListener('change', e => { const c = e.target.closest('[data-kontrola]'); if (c) zmen({t:'kontrola', key:c.dataset.kontrola, ok:c.checked}); });
