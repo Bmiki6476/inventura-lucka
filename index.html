@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "5cdaf84ced";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "4813553b89";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -320,6 +320,8 @@ td.r,th.r{text-align:right;white-space:nowrap}
   <section class="tab" id="tab-prehlad">
     <div class="note" id="rozsahTxt" style="margin-bottom:8px"></div>
     <div class="kpis" id="kpis"></div>
+    <div class="card" id="presunyCard" style="scroll-margin-top:72px"><h3>Barely – presuny z VODAXu na Lúku</h3><div class="tscroll" id="tabPresuny"></div>
+      <p class="note">Podľa odovzdávacích protokolov – každý protokol je zápis s miestom „Odovzdávací protokol …“ na karte barelov, paliet alebo preložiek.</p></div>
     <div class="card"><h3>Po skupinách</h3><div class="tscroll" id="tabSkupiny"></div></div>
     <div class="card"><h3>Kto koľko spočítal</h3><div class="tscroll" id="tabLudia"></div></div>
     <div class="card admin-only"><h3>Výdajníky – porovnanie s účtovníctvom po modeloch</h3><div class="tscroll" id="tabVydModely"></div>
@@ -1282,6 +1284,7 @@ function vykresliPrehlad(){
   const lz = Object.entries(ludia).sort((a, b) => b[1].n - a[1].n);
   $('#tabLudia').innerHTML = lz.length ? `<table><thead><tr><th>Kto</th><th class="r">Zápisov</th><th class="r">Položiek</th><th class="r">Naposledy</th></tr></thead><tbody>` +
     lz.map(([k, l]) => `<tr><td>${esc(k)}</td><td class="r">${l.n}</td><td class="r">${l.pol.size}</td><td class="r">${esc(fmtCas(l.posl))}</td></tr>`).join('') + '</tbody></table>' : '<p class="muted small">Zatiaľ nikto nič nezapísal.</p>';
+  vykresliPresuny();
   vykresliVydPrehlad();
   if (!jeAdmin()) return;
   vykresliBarely();
@@ -1326,6 +1329,50 @@ function vykresliBarely(){
   $('#barelyPozn').textContent = 'Zdroj: prehľad nákupov a vyradení od VODAXu (opravená verzia 22. 10. 2026, doplnený nákup 1 200 ks Temaqua 9/2026). ' +
     'Ocenenie podľa návrhu M. Horeckého z 18. 10. (4 roky životnosť) – s opravenou verziou vychádza ' + fmtE(hod) + ', pôvodný odhad ~113 tis. € bol bez riadku Temaqua. ' +
     'Barely u zákazníkov (obalové kontá a zálohy) pošle VODAX k 31. 10.';
+}
+
+/* Presuny barelov z VODAXu na Lúku – počty zapísané podľa odovzdávacích protokolov (miesto „Odovzdávací protokol …“, prvý presun „Prevzaté na skúšky“). */
+const jePresun = r => /^(Odovzdávací protokol|Prevzaté)/i.test(String(r.lok || ''));
+const PRESUN_STLPCE = ['Barely Lucka', 'Barely DAKOTA', 'Palety', 'Palety DAKOTA', 'Preložky'];
+function presunDruh(p){
+  const n = String(p.nazov || ''), dak = /DAKOTA/i.test(n);
+  if (/prelo[žz]k/i.test(n)) return 'Preložky';
+  if (/palet/i.test(n)) return dak ? 'Palety DAKOTA' : 'Palety';
+  if (jeBarel189(p)) return dak ? 'Barely DAKOTA' : 'Barely Lucka';
+  return n;
+}
+function presunyBarelov(){
+  const doklady = {}, spolu = {}, karty = {};
+  for (const r of Object.values(V.pocty)) {
+    if (!r || r.zmazane || !jePresun(r)) continue;
+    const p = MAPA[r.itemId]; if (!p) continue;
+    const druh = presunDruh(p), mn = num(r.mn) || 0, nazov = String(r.lok).replace(/\s*–\s*prevzal.*$/i, '');
+    const d = doklady[nazov] || (doklady[nazov] = {nazov, cas:r.cas, kto:new Set(), mn:{}});
+    if (String(r.cas) < String(d.cas)) d.cas = r.cas;
+    if (r.kto) d.kto.add(r.kto);
+    d.mn[druh] = (d.mn[druh] || 0) + mn; spolu[druh] = (spolu[druh] || 0) + mn;
+    if (p.typ !== 'navyse') (karty[druh] = karty[druh] || new Set()).add(p);
+  }
+  const stlpce = PRESUN_STLPCE.filter(k => spolu[k]).concat(Object.keys(spolu).filter(k => !PRESUN_STLPCE.includes(k)));
+  return {doklady:Object.values(doklady).sort((a, b) => String(a.cas).localeCompare(String(b.cas))), spolu, stlpce, karty};
+}
+function vykresliPresuny(){
+  const el = $('#tabPresuny'); if (!el) return;
+  const {doklady, spolu, stlpce, karty} = presunyBarelov();
+  if (!doklady.length) { el.innerHTML = '<p class="muted small">Zatiaľ nie je zapísaný žiadny presun.</p>'; return; }
+  const den = c => { const d = new Date(c); return isNaN(d) ? '' : d.toLocaleDateString('sk-SK', {day:'numeric', month:'numeric', year:'numeric'}); };
+  const meno = n => n.replace(/^Odovzdávací protokol/i, 'Protokol').replace(/\s*\(VODAX → BUDIŠ\)/, '').replace(/\s*\d{1,2}\.\s?\d{1,2}\.\s?\d{4}$/, '');
+  // účtovný stav len pre karty zo zoznamu VODAXu (nie navyše) a nie pri slepej inventúre
+  const ucet = {}; if (!slepa()) for (const k of stlpce) if (karty[k]) ucet[k] = [...karty[k]].reduce((a, p) => a + (p.mn || 0), 0);
+  const sUcet = Object.keys(ucet).length > 0;
+  let h = `<table><thead><tr><th>Čo</th><th class="r">Prevzaté</th>${sUcet ? '<th class="r">Účtovne</th><th class="r">Zostáva</th>' : ''}</tr></thead><tbody>` +
+    stlpce.map(k => `<tr><td>${esc(k)}</td><td class="r"><b>${fmtN(spolu[k])}</b></td>${sUcet ? `<td class="r">${k in ucet ? fmtN(ucet[k]) : '–'}</td><td class="r">${k in ucet ? fmtN(ucet[k] - spolu[k]) : '–'}</td>` : ''}</tr>`).join('') +
+    '</tbody></table>';
+  if (sUcet) h += `<p class="note">Účtovne = stav na karte VODAXu (${esc([...new Set(Object.values(karty).flatMap(s => [...s].map(p => p.sklad)))].join(', '))}), zostáva = účtovne − prevzaté.</p>`;
+  h += `<div class="small" style="font-weight:650;margin:12px 0 2px">Doklady (${doklady.length})</div>` +
+    `<table><tbody>${doklady.map(d => `<tr><td>${esc(meno(d.nazov))}<div class="muted small">${esc([den(d.cas), [...d.kto].join(', ')].filter(String).join(' · '))}</div>` +
+      `<div class="small">${stlpce.filter(k => d.mn[k]).map(k => esc(k) + ' <b>' + fmtN(d.mn[k]) + '</b>').join(' · ')}</div></td></tr>`).join('')}</tbody></table>`;
+  el.innerHTML = h;
 }
 
 /* ---------- nastavenia ---------- */
@@ -1830,6 +1877,7 @@ const IKONY = {
   vyd:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 7h4M9 12h2M13 12h2"/>',
   navyse:'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
   prehlad:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  barely:'<path d="M7 3h10M7 21h10"/><path d="M7 3c-1.5 4-1.5 14 0 18M17 3c1.5 4 1.5 14 0 18"/><path d="M6 9h12M6 15h12"/>',
   rozdiel:'<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
   nastav:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
 };
@@ -1851,6 +1899,8 @@ function vykresliDomov(){
     dlazdica('vyd', 'Skenovať výdajníky', vydKusov ? `${vydKusov} naskenovaných kusov` : 'QR kód na každom kuse', 'vyd'),
     dlazdica('navyse', 'Nájdené navyše', 'vec mimo zoznamu – s fotkou', 'navyse')
   ];
+  const pres = presunyBarelov(), barelov = (pres.spolu['Barely Lucka'] || 0) + (pres.spolu['Barely DAKOTA'] || 0);
+  T.push(dlazdica('barely', 'Barely z VODAXu', pres.doklady.length ? `${fmtN(barelov)} ks prevzatých · ${pres.doklady.length} ${pres.doklady.length === 1 ? 'doklad' : pres.doklady.length < 5 ? 'doklady' : 'dokladov'}` : 'zatiaľ nič prevzaté', 'barely'));
   if (jeAdmin()) T.push(dlazdica('rozdiel', 'Rozdiely a protokol', 'manko, prebytok, Excel', 'prehlad', rozd ? String(rozd) : ''));
   else T.push(dlazdica('prehlad', 'Prehľad', 'koľko je spočítané', 'prehlad'));
   T.push(dlazdica('nastav', 'Nastavenia', jeAdmin() ? 'zoznam, skladníci, kódy' : 'meno, synchronizácia', 'data'));
@@ -1888,6 +1938,7 @@ $('#dTiles').addEventListener('click', e => {
   const a = b.dataset.domov;
   if (a === 'navyse') { otvorPridanie(); return; }
   if (a === 'supis' || a === 'nespocitane') { C.filtre.stav = a === 'nespocitane' ? 'nie' : ''; ulozConf(); prepniTab('supis'); return; }
+  if (a === 'barely') { prepniTab('prehlad'); $('#presunyCard').scrollIntoView({block:'start'}); return; }
   prepniTab(a);
 });
 $('#dLokDomov').addEventListener('change', e => { const l = e.target.value.trim() || MIESTO_DEF; poslLok = l; ulozLS('inv-lucka-lok', l); C.vLok = l; ulozConf(); toast('Miesto: ' + l); });
