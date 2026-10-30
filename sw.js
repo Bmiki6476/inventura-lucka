@@ -1,8 +1,8 @@
-// Service worker Inventúra Lucka – verzia 7f5cf2237f
+// Service worker Inventúra Lucka – verzia 287ab850b0
 // Stránka: najprv sieť (nová verzia hneď), bez signálu z pamäte. Knižnice a ikony: z pamäte.
 // GitHub Pages posiela stránku s max-age=600 – preto sa pýta vždy servera (no-cache), inak by mobil 10 min videl starú verziu.
 // Volania servera (script.google.com) sa NIKDY neukladajú – offline fronta zmien je v appke.
-const CACHE = 'inventura-7f5cf2237f';
+const CACHE = 'inventura-287ab850b0';
 const ZAKLAD = ['./', 'index.html', 'manifest.webmanifest', 'ikona-192.png', 'ikona-512.png', 'apple-touch-icon.png', 'favicon-32.png'];
 const KNIZNICE = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 self.addEventListener('install', e => {

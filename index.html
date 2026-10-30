@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "7f5cf2237f";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "287ab850b0";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -1332,7 +1332,8 @@ function vykresliBarely(){
 }
 
 /* Presuny barelov z VODAXu na Lúku – počty zapísané podľa odovzdávacích protokolov (miesto „Odovzdávací protokol …“, prvý presun „Prevzaté na skúšky“).
-   Barely bez označenia idú na tú istú kartu ako Lucka (Barel 18,9 lit.), odlíši ich miesto „… – barely bez označenia – prevzal …“. */
+   Miesto „doklad – spresnenie – prevzal …“: doklad je časť pred prvou pomlčkou. Barely bez označenia idú na tú istú kartu ako Lucka (Barel 18,9 lit.),
+   odlíši ich „bez označenia“ v spresnení („barely bez označenia“, „plné barely bez označenia“). */
 const jePresun = r => /^(Odovzdávací protokol|Prevzaté)/i.test(String(r.lok || ''));
 const PRESUN_STLPCE = ['Barely Lucka', 'Barely bez označenia', 'Barely Temaqua', 'Barely DAKOTA', 'Palety', 'Palety DAKOTA', 'Preložky'];
 function presunDruh(p, r){
@@ -1347,7 +1348,7 @@ function presunyBarelov(){
   for (const r of Object.values(V.pocty)) {
     if (!r || r.zmazane || !jePresun(r)) continue;
     const p = MAPA[r.itemId]; if (!p) continue;
-    const druh = presunDruh(p, r), mn = num(r.mn) || 0, nazov = String(r.lok).replace(/\s*–\s*(barely bez označenia|prevzal).*$/i, '');
+    const druh = presunDruh(p, r), mn = num(r.mn) || 0, nazov = String(r.lok).replace(/\s+–\s.*$/, '');
     const d = doklady[nazov] || (doklady[nazov] = {nazov, cas:r.cas, kto:new Set(), mn:{}});
     if (String(r.cas) < String(d.cas)) d.cas = r.cas;
     if (r.kto) d.kto.add(r.kto);
