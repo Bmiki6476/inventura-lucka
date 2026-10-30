@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventúra">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "4813553b89";</script>
+<script>window.API_URL = "https://script.google.com/macros/s/AKfycbwjm1iWaw22v24hNjcKnxiG9laE727I7Ygv4IiT3lpBD7Uh9SwfrQZ_M0nRFNwY5rFt/exec"; window.WEB_VERZIA = "7f5cf2237f";</script>
 
 <script>
 /* chyba skriptu sa ukáže priamo na stránke (aj v mobile a v rámci Google) */
@@ -1331,14 +1331,15 @@ function vykresliBarely(){
     'Barely u zákazníkov (obalové kontá a zálohy) pošle VODAX k 31. 10.';
 }
 
-/* Presuny barelov z VODAXu na Lúku – počty zapísané podľa odovzdávacích protokolov (miesto „Odovzdávací protokol …“, prvý presun „Prevzaté na skúšky“). */
+/* Presuny barelov z VODAXu na Lúku – počty zapísané podľa odovzdávacích protokolov (miesto „Odovzdávací protokol …“, prvý presun „Prevzaté na skúšky“).
+   Barely bez označenia idú na tú istú kartu ako Lucka (Barel 18,9 lit.), odlíši ich miesto „… – barely bez označenia – prevzal …“. */
 const jePresun = r => /^(Odovzdávací protokol|Prevzaté)/i.test(String(r.lok || ''));
-const PRESUN_STLPCE = ['Barely Lucka', 'Barely DAKOTA', 'Palety', 'Palety DAKOTA', 'Preložky'];
-function presunDruh(p){
+const PRESUN_STLPCE = ['Barely Lucka', 'Barely bez označenia', 'Barely Temaqua', 'Barely DAKOTA', 'Palety', 'Palety DAKOTA', 'Preložky'];
+function presunDruh(p, r){
   const n = String(p.nazov || ''), dak = /DAKOTA/i.test(n);
   if (/prelo[žz]k/i.test(n)) return 'Preložky';
   if (/palet/i.test(n)) return dak ? 'Palety DAKOTA' : 'Palety';
-  if (jeBarel189(p)) return dak ? 'Barely DAKOTA' : 'Barely Lucka';
+  if (jeBarel189(p)) return dak ? 'Barely DAKOTA' : /temaqua/i.test(n) ? 'Barely Temaqua' : /bez označenia/i.test(String(r.lok || '')) ? 'Barely bez označenia' : 'Barely Lucka';
   return n;
 }
 function presunyBarelov(){
@@ -1346,7 +1347,7 @@ function presunyBarelov(){
   for (const r of Object.values(V.pocty)) {
     if (!r || r.zmazane || !jePresun(r)) continue;
     const p = MAPA[r.itemId]; if (!p) continue;
-    const druh = presunDruh(p), mn = num(r.mn) || 0, nazov = String(r.lok).replace(/\s*–\s*prevzal.*$/i, '');
+    const druh = presunDruh(p, r), mn = num(r.mn) || 0, nazov = String(r.lok).replace(/\s*–\s*(barely bez označenia|prevzal).*$/i, '');
     const d = doklady[nazov] || (doklady[nazov] = {nazov, cas:r.cas, kto:new Set(), mn:{}});
     if (String(r.cas) < String(d.cas)) d.cas = r.cas;
     if (r.kto) d.kto.add(r.kto);
@@ -1365,10 +1366,21 @@ function vykresliPresuny(){
   // účtovný stav len pre karty zo zoznamu VODAXu (nie navyše) a nie pri slepej inventúre
   const ucet = {}; if (!slepa()) for (const k of stlpce) if (karty[k]) ucet[k] = [...karty[k]].reduce((a, p) => a + (p.mn || 0), 0);
   const sUcet = Object.keys(ucet).length > 0;
+  // druhy na tej istej karte (Lucka a bez označenia) majú účtovne a zostáva spoločne cez viac riadkov
+  const kluc = k => k in ucet ? [...karty[k]].map(p => p.id).sort().join('|') : '';
+  const bunkyUcet = (k, i) => {
+    const kl = kluc(k);
+    if (!kl) return '<td class="r">–</td><td class="r">–</td>';
+    if (i && kluc(stlpce[i - 1]) === kl) return '';
+    let n = 1; while (i + n < stlpce.length && kluc(stlpce[i + n]) === kl) n++;
+    const prev = stlpce.slice(i, i + n).reduce((a, x) => a + spolu[x], 0), rs = n > 1 ? ` rowspan="${n}" style="vertical-align:middle"` : '';
+    return `<td class="r"${rs}>${fmtN(ucet[k])}</td><td class="r"${rs}>${fmtN(ucet[k] - prev)}</td>`;
+  };
   let h = `<table><thead><tr><th>Čo</th><th class="r">Prevzaté</th>${sUcet ? '<th class="r">Účtovne</th><th class="r">Zostáva</th>' : ''}</tr></thead><tbody>` +
-    stlpce.map(k => `<tr><td>${esc(k)}</td><td class="r"><b>${fmtN(spolu[k])}</b></td>${sUcet ? `<td class="r">${k in ucet ? fmtN(ucet[k]) : '–'}</td><td class="r">${k in ucet ? fmtN(ucet[k] - spolu[k]) : '–'}</td>` : ''}</tr>`).join('') +
+    stlpce.map((k, i) => `<tr><td>${esc(k)}</td><td class="r"><b>${fmtN(spolu[k])}</b></td>${sUcet ? bunkyUcet(k, i) : ''}</tr>`).join('') +
     '</tbody></table>';
-  if (sUcet) h += `<p class="note">Účtovne = stav na karte VODAXu (${esc([...new Set(Object.values(karty).flatMap(s => [...s].map(p => p.sklad)))].join(', '))}), zostáva = účtovne − prevzaté.</p>`;
+  if (sUcet) h += `<p class="note">Účtovne = stav na karte VODAXu (${esc([...new Set(Object.values(karty).flatMap(s => [...s].map(p => p.sklad)))].join(', '))}), zostáva = účtovne − prevzaté.` +
+    `${spolu['Barely bez označenia'] && spolu['Barely Lucka'] ? ' Barely Lucka a bez označenia sú na jednej karte „Barel 18,9 lit.“.' : ''}</p>`;
   h += `<div class="small" style="font-weight:650;margin:12px 0 2px">Doklady (${doklady.length})</div>` +
     `<table><tbody>${doklady.map(d => `<tr><td>${esc(meno(d.nazov))}<div class="muted small">${esc([den(d.cas), [...d.kto].join(', ')].filter(String).join(' · '))}</div>` +
       `<div class="small">${stlpce.filter(k => d.mn[k]).map(k => esc(k) + ' <b>' + fmtN(d.mn[k]) + '</b>').join(' · ')}</div></td></tr>`).join('')}</tbody></table>`;
@@ -1899,7 +1911,7 @@ function vykresliDomov(){
     dlazdica('vyd', 'Skenovať výdajníky', vydKusov ? `${vydKusov} naskenovaných kusov` : 'QR kód na každom kuse', 'vyd'),
     dlazdica('navyse', 'Nájdené navyše', 'vec mimo zoznamu – s fotkou', 'navyse')
   ];
-  const pres = presunyBarelov(), barelov = (pres.spolu['Barely Lucka'] || 0) + (pres.spolu['Barely DAKOTA'] || 0);
+  const pres = presunyBarelov(), barelov = Object.entries(pres.spolu).filter(([k]) => k.startsWith('Barely')).reduce((a, [, v]) => a + v, 0);
   T.push(dlazdica('barely', 'Barely z VODAXu', pres.doklady.length ? `${fmtN(barelov)} ks prevzatých · ${pres.doklady.length} ${pres.doklady.length === 1 ? 'doklad' : pres.doklady.length < 5 ? 'doklady' : 'dokladov'}` : 'zatiaľ nič prevzaté', 'barely'));
   if (jeAdmin()) T.push(dlazdica('rozdiel', 'Rozdiely a protokol', 'manko, prebytok, Excel', 'prehlad', rozd ? String(rozd) : ''));
   else T.push(dlazdica('prehlad', 'Prehľad', 'koľko je spočítané', 'prehlad'));
